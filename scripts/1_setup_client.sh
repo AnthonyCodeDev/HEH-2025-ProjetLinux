@@ -105,6 +105,8 @@ for svc in nginx vsftpd smb nmb mariadb; do
   sudo systemctl enable --now "$svc" &>/dev/null && succ "Service $svc activé"
 done
 
+sudo systemctl enable --now mariadb.service &>/dev/null && succ "Service mariadb.service activé"
+
 ### 4) Init MariaDB datadir (une seule fois)
 if [ "${CLIENT_PKG}" = "mariadb105" ]; then SERVER_PKG="mariadb105-server"; else SERVER_PKG="${CLIENT_PKG%-client}-server"; fi
 install_if_missing "$SERVER_PKG" "$SERVER_PKG"
