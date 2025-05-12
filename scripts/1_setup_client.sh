@@ -1,17 +1,55 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ce script doit être lancé avec bash : sudo bash setup_client.sh
+# Usage :
+#   sudo bash setup_client.sh -u user1 [user2 …] -p PASSWORD -d DOMAIN
+#
+# Exemples :
+#   sudo bash setup_client.sh -u alice          -p S3cure    -d example.lan
+#   sudo bash setup_client.sh -u alice bob carol -p S3cure    -d example.lan
 
-# ——————————————————————————
-# Couleurs ANSI pour les messages
-# ——————————————————————————
+### ——————————————————————————
+### Couleurs & helpers
+### ——————————————————————————
 RED=$'\e[31m'; GREEN=$'\e[32m'; RESET=$'\e[0m'
-function err  { printf "%b[ERREUR] %s%b\n" "$RED" "$1" "$RESET"; exit 1; }
+function err  { printf "%b[ERREUR] %s%b\n" "$RED" "$1" "$RESET" >&2; exit 1; }
 function succ { printf "%b[OK]    %s%b\n" "$GREEN" "$1" "$RESET"; }
 
-### Variables globales
-# Détection du gestionnaire de paquets et du client SQL
+### ——————————————————————————
+### 1) Parse options
+### ——————————————————————————
+PASSWORD=''; DOMAIN=''
+USERS=()
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -u)
+      shift
+      while [[ $# -gt 0 && $1 != -* ]]; do
+        USERS+=( "$1" )
+        shift
+      done
+      ;;
+    -p) PASSWORD=$2; shift 2 ;;
+    -d) DOMAIN=$2;   shift 2 ;;
+    *)  err "Usage : $0 -u user1 [user2 …] -p PASSWORD -d DOMAIN" ;;
+  esac
+done
+
+[ ${#USERS[@]} -ge 1 ]  || err "Il faut au moins un utilisateur après -u"
+[ -n "$PASSWORD" ]     || err "Il manque -p PASSWORD"
+[ -n "$DOMAIN"   ]     || err "Il manque -d DOMAIN"
+
+# mot de passe root fixé en dur
+ROOT_PW='VotreNouveauMdp1!'
+
+succ "Domaine    : ${DOMAIN}"
+succ "Password clients : ${PASSWORD}"
+succ "Clients à provisionner : ${USERS[*]}"
+
+### ——————————————————————————
+### 2) Détection pkg manager & SQL client
+### ——————————————————————————
 PKG_MGR=""; CLIENT_PKG=""
 if [ -r /etc/os-release ]; then
   . /etc/os-release
@@ -24,27 +62,11 @@ if [ -r /etc/os-release ]; then
 else
   PKG_MGR=yum; CLIENT_PKG=mariadb
 fi
-
-# Paramètres « ec2-user »
-CLIENT=ec2-user
-USER_PASS='VotreNouveauMdp1!'
-
-# Mot de passe root = même que USER_PASS
-ROOT_PW="${USER_PASS}"
-
-# Base SQL pour ec2-user
-DB_NAME=${CLIENT}_db
-DB_USER=${CLIENT}
-DB_PASS=${USER_PASS}
-
-# Autres
-DOMAIN=heh.lan
-WEB_DIR=/var/www/${CLIENT}
-VHOST_CONF=/etc/nginx/conf.d/${DOMAIN}.conf
-
 succ "Package manager: ${PKG_MGR}, SQL client: ${CLIENT_PKG}"
 
-# Fonction d'installation conditionnelle
+### ——————————————————————————
+### 3) Fonction d’installation conditionnelle
+### ——————————————————————————
 install_if_missing(){
   local bin=$1 pkg=$2
   if ! command -v "$bin" &>/dev/null; then
@@ -54,16 +76,20 @@ install_if_missing(){
   fi
 }
 
-### 1) Services de base + client SQL
+### ——————————————————————————
+### 4) Installer/activer services (une seule fois)
+### ——————————————————————————
 for pkg in nginx openssl vsftpd samba "${CLIENT_PKG}"; do
   [ "$PKG_MGR" = "apt-get" ] && [ "$pkg" = "${CLIENT_PKG}" ] && sudo apt-get update -y
   install_if_missing "$pkg" "$pkg"
 done
-for svc in nginx vsftpd smb nmb; do
+for svc in nginx vsftpd smb nmb mariadb; do
   sudo systemctl enable --now "$svc" &>/dev/null && succ "Service $svc activé"
 done
 
-### 2) MariaDB + init datadir
+### ——————————————————————————
+### 5) Init MariaDB datadir (une seule fois)
+### ——————————————————————————
 if [ "${CLIENT_PKG}" = "mariadb105" ]; then
   SERVER_PKG="mariadb105-server"
 else
@@ -73,56 +99,85 @@ install_if_missing "$SERVER_PKG" "$SERVER_PKG"
 
 if [ ! -d /var/lib/mysql/mysql ]; then
   succ "Initialisation du datadir MariaDB"
-  if command -v mariadb-install-db &>/dev/null; then
-    sudo mariadb-install-db --user=mysql --datadir=/var/lib/mysql \
-      && succ "Datadir initialisé" || err "Échec init datadir"
-  else
-    err "mariadb-install-db introuvable"
-  fi
+  command -v mariadb-install-db &>/dev/null \
+    && sudo mariadb-install-db --user=mysql --datadir=/var/lib/mysql \
+    && succ "Datadir initialisé" || err "Échec init datadir"
   sudo chown -R mysql:mysql /var/lib/mysql
 fi
 
-# Créer le répertoire des sockets (si besoin)
 sudo mkdir -p /var/run/mysqld
 sudo chown mysql:mysql /var/run/mysqld
 
-sudo systemctl enable mariadb
-sudo systemctl start mariadb && succ "Service mariadb démarré"
+### ——————————————————————————
+### 6) Configuration root MySQL (une seule fois, idempotent)
+### ——————————————————————————
+echo "→ Vérification du plugin root@localhost"
+if plugin=$(sudo mysql --batch --skip-column-names --protocol=socket --user=root \
+     -p"${ROOT_PW}" -e "SELECT plugin FROM mysql.user WHERE user='root' AND host='localhost';" 2>/dev/null) \
+  || plugin=$(sudo mysql --batch --skip-column-names --protocol=socket --user=root \
+     -e "SELECT plugin FROM mysql.user WHERE user='root' AND host='localhost';"); then
 
-### 3) SQL : définir root et créer ec2-user
-
-# 3.1 Définir le mot de passe root en mysql_native_password
-echo "→ Configuration de l’authentification root en mysql_native_password"
-sudo mysql --protocol=socket --user=root <<SQL
+  if [ "$plugin" != "mysql_native_password" ]; then
+    echo "→ Passage en mysql_native_password"
+    if [ "$plugin" = "unix_socket" ]; then
+      sudo mysql --protocol=socket --user=root <<SQL
 ALTER USER 'root'@'localhost'
   IDENTIFIED VIA mysql_native_password
   USING PASSWORD('${ROOT_PW}');
 FLUSH PRIVILEGES;
 SQL
-succ "Mot de passe root défini en mysql_native_password"
+    else
+      sudo mysql --protocol=socket --user=root -p"${ROOT_PW}" <<SQL
+ALTER USER 'root'@'localhost'
+  IDENTIFIED VIA mysql_native_password
+  USING PASSWORD('${ROOT_PW}');
+FLUSH PRIVILEGES;
+SQL
+    fi
+    succ "root@localhost en mysql_native_password"
+  else
+    succ "root@localhost déjà en mysql_native_password"
+  fi
 
-# 3.2 Créer la base et l'utilisateur ec2-user
-mysql --protocol=socket -uroot -p"${ROOT_PW}" <<SQL
+else
+  err "Impossible de détecter le plugin de root"
+fi
+
+### ——————————————————————————
+### 7) Boucle de configuration pour chaque client
+### ——————————————————————————
+for USER_NAME in "${USERS[@]}"; do
+  WEB_DIR="/var/www/${USER_NAME}"
+  VHOST_CONF="/etc/nginx/conf.d/${DOMAIN}.conf"
+  DB_NAME="${USER_NAME}_db"
+  DB_USER="${USER_NAME}"
+  DB_PASS="${PASSWORD}"
+
+  succ "=== Configuration de $USER_NAME ==="
+
+  # SQL : base & user
+  sudo mysql --protocol=socket -uroot -p"${ROOT_PW}" <<SQL
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
 SQL
-succ "Base ${DB_NAME} et utilisateur SQL ${DB_USER} créés"
+  succ "SQL : base & user pour $USER_NAME"
 
-### 4) Utilisateur système ec2-user
-if ! id "$CLIENT" &>/dev/null; then
-  sudo useradd -m -d "$WEB_DIR" -s /sbin/nologin "$CLIENT"
-  succ "Utilisateur système $CLIENT ajouté"
-fi
-echo "$CLIENT:$USER_PASS" | sudo chpasswd
-succ "Mot de passe système de $CLIENT défini"
+  # Utilisateur système
+  if ! id "$USER_NAME" &>/dev/null; then
+    sudo useradd -m -d "$WEB_DIR" -s /sbin/nologin "$USER_NAME"
+    succ "Utilisateur système $USER_NAME ajouté"
+  fi
+  echo "$USER_NAME:${PASSWORD}" | sudo chpasswd
+  succ "Mot de passe système défini pour $USER_NAME"
 
-### 5) Web / FTP / Samba
-[ ! -d "$WEB_DIR" ] && sudo mkdir -p "$WEB_DIR" && sudo chmod 755 "$WEB_DIR" && succ "Web dir créé"
+  # Web dir & vHost nginx
+  [ ! -d "$WEB_DIR" ] && sudo mkdir -p "$WEB_DIR" && sudo chmod 755 "$WEB_DIR"
+  succ "Web dir $WEB_DIR prêt"
 
-if [ ! -f "$VHOST_CONF" ]; then
-  sudo tee "$VHOST_CONF" >/dev/null <<EOF
+  if [ ! -f "$VHOST_CONF" ]; then
+    sudo tee "$VHOST_CONF" >/dev/null <<EOF
 server {
   listen 80;
   server_name ${DOMAIN};
@@ -131,38 +186,51 @@ server {
   location / { try_files \$uri \$uri/ =404; }
 }
 EOF
-  succ "vHost ajouté"
-fi
-sudo nginx -t && sudo systemctl reload nginx && succ "nginx rechargé"
+    succ "vHost nginx ajouté pour ${DOMAIN}"
+    sudo nginx -t && sudo systemctl reload nginx && succ "nginx rechargé"
+  else
+    succ "vHost nginx pour ${DOMAIN} déjà existant"
+  fi
 
-if ! grep -qx "$CLIENT" /etc/vsftpd/user_list; then
-  echo "$CLIENT" | sudo tee -a /etc/vsftpd/user_list >/dev/null
-  sudo systemctl restart vsftpd && succ "FTP configuré"
-fi
+  # FTP (vsftpd)
+  if ! grep -qx "$USER_NAME" /etc/vsftpd/user_list; then
+    echo "$USER_NAME" | sudo tee -a /etc/vsftpd/user_list >/dev/null
+    sudo systemctl restart vsftpd && succ "FTP configuré pour $USER_NAME"
+  else
+    succ "FTP déjà configuré pour $USER_NAME"
+  fi
 
-if ! grep -q "^\[$CLIENT\]" /etc/samba/smb.conf; then
-  sudo tee -a /etc/samba/smb.conf >/dev/null <<EOF
+  # Samba
+  if ! grep -q "^\[${USER_NAME}\]" /etc/samba/smb.conf; then
+    sudo tee -a /etc/samba/smb.conf >/dev/null <<EOF
 
-[$CLIENT]
+[${USER_NAME}]
   path = ${WEB_DIR}
-  valid users = ${CLIENT}
+  valid users = ${USER_NAME}
   browsable = yes
   writable = yes
   create mask = 0644
   directory mask = 0755
 EOF
-  (echo "${USER_PASS}"; echo "${USER_PASS}") | sudo smbpasswd -a -s "${CLIENT}"
-  sudo systemctl restart smb nmb && succ "Samba configuré"
-fi
+    (echo "${PASSWORD}"; echo "${PASSWORD}") | sudo smbpasswd -a -s "${USER_NAME}"
+    sudo systemctl restart smb nmb && succ "Samba configuré pour $USER_NAME"
+  else
+    succ "Samba déjà configuré pour $USER_NAME"
+  fi
 
-### 6) Récapitulatif
-cat <<EOF
+  # Récapitulatif pour ce client
+  cat <<EOF
 
-=== IDENTIFIANTS ${CLIENT} ===
-• Domaine       : http://${DOMAIN}
-• Web dir       : ${WEB_DIR}
-• Système       : ${CLIENT} / ${USER_PASS}
-• FTP/Samba     : ${CLIENT} / ${USER_PASS}
-• SQL root      : root / ${ROOT_PW}
-• SQL client    : ${DB_USER} / ${DB_PASS} (base ${DB_NAME})
+=== IDENTIFIANTS ${USER_NAME} ===
+• Domaine     : http://${DOMAIN}
+• Web dir     : ${WEB_DIR}
+• Système     : ${USER_NAME} / ${PASSWORD}
+• FTP/Samba   : ${USER_NAME} / ${PASSWORD}
+• SQL root    : root / ${ROOT_PW}
+• SQL client  : ${DB_USER} / ${DB_PASS} (base ${DB_NAME})
+
 EOF
+
+done
+
+succ "Tous les clients (${USERS[*]}) ont été configurés avec le domaine ${DOMAIN} et le mot de passe commun."
