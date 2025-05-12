@@ -27,7 +27,7 @@ done
 [ -n "$DOMAIN"   ]     || err "Il manque -d DOMAIN"
 
 # mot de passe root MariaDB
-ROOT_PW='VotreNouveauMdp1!'
+ROOT_PW='JSShFZtpt35MHX'
 
 succ "Domaine    : ${DOMAIN}"
 succ "Password clients : ${PASSWORD}"
