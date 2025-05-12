@@ -7,11 +7,10 @@ set -euo pipefail
 ### ——————————————————————————
 ### Couleurs & helpers
 ### ——————————————————————————
-RED=$'\e[31m'; GREEN=$'\e[32m'; RESET=$'\e[0m'
-function err  { printf "%b[ERREUR] %s%b
-" "$RED" "$1" "$RESET" >&2; exit 1; }
-function succ { printf "%b[OK]    %s%b
-" "$GREEN" "$1" "$RESET"; }
+RED=$'\e[31m'; GREEN=$'\e[32m'; BLUE=$'\e[34m'; RESET=$'\e[0m'
+function err  { printf "%b[ERREUR] %s%b\n" "$RED" "$1" "$RESET" >&2; exit 1; }
+function succ { printf "%b[OK]    %s%b\n" "$GREEN" "$1" "$RESET"; }
+function info { printf "%b[INFO]   %s%b\n" "$BLUE" "$1" "$RESET"; }
 
 ### 1) Parse options
 PASSWORD=''; DOMAIN=''; USERS=()
@@ -132,6 +131,12 @@ for USER_NAME in "${USERS[@]}"; do
   DB_NAME="${USER_NAME}_db"
   DB_USER="${USER_NAME}"
   DB_PASS="${PASSWORD}"
+
+  # Si l'utilisateur existe déjà et que son répertoire web est en place, on passe
+  if id "$USER_NAME" &>/dev/null && [ -d "$WEB_DIR" ]; then
+    info "Utilisateur ${USER_NAME} existe déjà, configuration ignorée"
+    continue
+  fi
 
   succ "=== Configuration de $USER_NAME ==="
 
