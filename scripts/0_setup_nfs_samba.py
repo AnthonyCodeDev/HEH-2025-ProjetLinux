@@ -15,7 +15,7 @@ print_success "Nettoyage du cache yum..."
 sudo yum clean all
 sudo yum makecache
 
-# Vérification de l'existence de NFS et Samba
+# Vérification de l'existence des paquets nécessaires
 print_success "Vérification de l'existence des paquets nécessaires..."
 
 # Vérifier si NFS est installé
@@ -74,7 +74,8 @@ print_success "Configuration du partage NFS..."
 NFS_EXPORTS_FILE="/etc/exports"
 
 if ! grep -q "$NFS_SHARE_DIR" "$NFS_EXPORTS_FILE"; then
-    echo "$NFS_SHARE_DIR *(rw,sync,no_subtree_check,no_auth_nlm)" | sudo tee -a "$NFS_EXPORTS_FILE" || { print_error "Échec de l'ajout de l'export NFS."; exit 1; }
+    echo "$NFS_SHARE_DIR *(rw,sync,no_subtree_check,no_auth_nlm)" | sudo tee -a "$NFS_EXPORTS_FILE" \
+        || { print_error "Échec de l'ajout de l'export NFS."; exit 1; }
     print_success "Partage NFS ajouté à /etc/exports."
 else
     print_success "Le partage NFS est déjà configuré dans /etc/exports."
@@ -89,7 +90,6 @@ print_success "Configuration du partage Samba..."
 
 SAMBA_CONF_FILE="/etc/samba/smb.conf"
 
-# Ajouter la section de partage Samba
 if ! grep -q "\[shared\]" "$SAMBA_CONF_FILE"; then
     sudo bash -c "cat <<EOT >> $SAMBA_CONF_FILE
 
@@ -114,14 +114,20 @@ sudo systemctl restart smb || { print_error "Échec du redémarrage de Samba."; 
 sudo systemctl restart nmb || { print_error "Échec du redémarrage de NMB."; exit 1; }
 print_success "Services Samba redémarrés avec succès."
 
-# Activer les services Samba pour qu'ils démarrent au démarrage
+# Activer les services Samba pour le démarrage automatique
 sudo systemctl enable smb || { print_error "Échec de l'activation du service Samba."; exit 1; }
 sudo systemctl enable nmb || { print_error "Échec de l'activation du service NMB."; exit 1; }
 print_success "Services Samba activés pour le démarrage automatique."
 
-# Vérification du pare-feu et ouverture du port 445 pour Samba
+# ---------------------------------------------------
+# Section pare-feu avec vérification du port 445/tcp
+# ---------------------------------------------------
+
+print_success "Vérification de firewalld et ouverture du port Samba..."
+
+# Installer firewalld si nécessaire
 if ! command -v firewall-cmd &> /dev/null; then
-    print_success "firewalld n'est pas installé. Installation en cours..."
+    print_error "firewalld n'est pas installé. Installation en cours..."
     sudo yum install -y firewalld || { print_error "Échec de l'installation de firewalld."; exit 1; }
     print_success "firewalld installé avec succès."
 else
@@ -130,13 +136,20 @@ fi
 
 # Démarrer firewalld si nécessaire
 sudo systemctl start firewalld || { print_error "Échec du démarrage de firewalld."; exit 1; }
+print_success "firewalld démarré."
 
-# Ouvrir le port 445 pour Samba
-sudo firewall-cmd --zone=public --add-port=445/tcp --permanent || { print_error "Échec de l'ouverture du port 445."; exit 1; }
-sudo firewall-cmd --reload || { print_error "Échec du rechargement du pare-feu."; exit 1; }
-print_success "Port 445 ouvert pour Samba."
+# Ouvrir le port 445 seulement s'il n'est pas déjà ouvert
+if ! sudo firewall-cmd --zone=public --query-port=445/tcp &> /dev/null; then
+    print_success "Ouverture du port 445/tcp pour Samba..."
+    sudo firewall-cmd --zone=public --add-port=445/tcp --permanent \
+        || { print_error "Échec de l'ouverture du port 445."; exit 1; }
+    sudo firewall-cmd --reload || { print_error "Échec du rechargement du pare-feu."; exit 1; }
+    print_success "Port 445 ouvert et rechargé avec succès."
+else
+    print_success "Le port 445/tcp est déjà ouvert pour Samba. Aucun changement nécessaire."
+fi
 
-# Afficher les partages NFS et Samba
+# Vérification des partages NFS et Samba
 print_success "Vérification des partages NFS et Samba..."
 sudo exportfs -v || { print_error "Échec de la vérification des partages NFS."; exit 1; }
 sudo smbclient -L localhost -U% || { print_error "Échec de la vérification des partages Samba."; exit 1; }
@@ -151,13 +164,14 @@ SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Instructions pour accéder depuis Windows
 print_success "Tout est configuré ! Voici comment accéder aux partages depuis Windows :"
+
 echo ""
 echo "1. Ouvrez l'explorateur de fichiers de Windows."
-echo "2. Rendez vous dans \"Ce PC\"."
-echo "2. Cliquez sur \"Ajouter un emplacement réseau\"."
-echo "2. Suivez les étapes et entrez l'adresse suivante :"
+echo "2. Rendez-vous dans \"Ce PC\"."
+echo "3. Cliquez droit et ensuite cliquez gauchesur \"Ajouter un emplacement réseau\"."
+echo "4. Suivez les étapes et entrez l'adresse suivante :"
 echo "   \\\\$SERVER_IP\shared"
-echo "3. Appuyez sur 'Entrée'."
+echo "5. Appuyez sur 'Entrée'."
 echo ""
 echo "Si vous êtes invité à entrer un nom d'utilisateur et un mot de passe, utilisez :"
 echo "Nom d'utilisateur : guest"
