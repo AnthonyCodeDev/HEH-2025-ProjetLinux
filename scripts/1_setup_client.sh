@@ -3,70 +3,48 @@ set -euo pipefail
 
 # Usage :
 #   sudo bash setup_client.sh -u user1 [user2 …] -p PASSWORD -d DOMAIN
-#
-# Exemples :
-#   sudo bash setup_client.sh -u alice          -p S3cure    -d example.lan
-#   sudo bash setup_client.sh -u alice bob carol -p S3cure    -d example.lan
 
 ### ——————————————————————————
 ### Couleurs & helpers
 ### ——————————————————————————
 RED=$'\e[31m'; GREEN=$'\e[32m'; RESET=$'\e[0m'
-function err  { printf "%b[ERREUR] %s%b\n" "$RED" "$1" "$RESET" >&2; exit 1; }
-function succ { printf "%b[OK]    %s%b\n" "$GREEN" "$1" "$RESET"; }
+function err  { printf "%b[ERREUR] %s%b
+" "$RED" "$1" "$RESET" >&2; exit 1; }
+function succ { printf "%b[OK]    %s%b
+" "$GREEN" "$1" "$RESET"; }
 
-### ——————————————————————————
 ### 1) Parse options
-### ——————————————————————————
-PASSWORD=''; DOMAIN=''
-USERS=()
-
+PASSWORD=''; DOMAIN=''; USERS=()
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -u)
-      shift
-      while [[ $# -gt 0 && $1 != -* ]]; do
-        USERS+=( "$1" )
-        shift
-      done
-      ;;
+    -u) shift; while [[ $# -gt 0 && $1 != -* ]]; do USERS+=("$1"); shift; done ;;
     -p) PASSWORD=$2; shift 2 ;;
     -d) DOMAIN=$2;   shift 2 ;;
     *)  err "Usage : $0 -u user1 [user2 …] -p PASSWORD -d DOMAIN" ;;
   esac
 done
-
 [ ${#USERS[@]} -ge 1 ]  || err "Il faut au moins un utilisateur après -u"
 [ -n "$PASSWORD" ]     || err "Il manque -p PASSWORD"
 [ -n "$DOMAIN"   ]     || err "Il manque -d DOMAIN"
 
-# mot de passe root fixé en dur
+# mot de passe root MariaDB
 ROOT_PW='VotreNouveauMdp1!'
 
 succ "Domaine    : ${DOMAIN}"
 succ "Password clients : ${PASSWORD}"
 succ "Clients à provisionner : ${USERS[*]}"
 
-### ——————————————————————————
 ### 2) Détection pkg manager & SQL client
-### ——————————————————————————
 PKG_MGR=""; CLIENT_PKG=""
-if [ -r /etc/os-release ]; then
-  . /etc/os-release
-  case "${ID}-${VERSION_ID}" in
-    amzn-2023)      PKG_MGR=dnf;     CLIENT_PKG=mariadb105;;
-    amzn-2)         PKG_MGR=yum;     CLIENT_PKG=mariadb;;
-    ubuntu*|debian*)PKG_MGR=apt-get; CLIENT_PKG=mariadb-client;;
-    *)              PKG_MGR=$(command -v dnf||command -v yum||echo apt-get); CLIENT_PKG=mariadb-client;;
-  esac
-else
-  PKG_MGR=yum; CLIENT_PKG=mariadb
-fi
+. /etc/os-release 2>/dev/null || true
+case "${ID:-}-${VERSION_ID:-}" in
+  amzn-2023)      PKG_MGR=dnf;     CLIENT_PKG=mariadb105;;
+  amzn-2)         PKG_MGR=yum;     CLIENT_PKG=mariadb;;
+  ubuntu*|debian*)PKG_MGR=apt-get; CLIENT_PKG=mariadb-client;;
+  *)              PKG_MGR=$(command -v dnf||command -v yum||echo apt-get); CLIENT_PKG=mariadb-client;;
+esac
 succ "Package manager: ${PKG_MGR}, SQL client: ${CLIENT_PKG}"
 
-### ——————————————————————————
-### 3) Fonction d’installation conditionnelle
-### ——————————————————————————
 install_if_missing(){
   local bin=$1 pkg=$2
   if ! command -v "$bin" &>/dev/null; then
@@ -76,9 +54,7 @@ install_if_missing(){
   fi
 }
 
-### ——————————————————————————
-### 4) Installer/activer services (une seule fois)
-### ——————————————————————————
+### 3) Installation/activation services (une seule fois)
 for pkg in nginx openssl vsftpd samba "${CLIENT_PKG}"; do
   [ "$PKG_MGR" = "apt-get" ] && [ "$pkg" = "${CLIENT_PKG}" ] && sudo apt-get update -y
   install_if_missing "$pkg" "$pkg"
@@ -87,35 +63,23 @@ for svc in nginx vsftpd smb nmb mariadb; do
   sudo systemctl enable --now "$svc" &>/dev/null && succ "Service $svc activé"
 done
 
-### ——————————————————————————
-### 5) Init MariaDB datadir (une seule fois)
-### ——————————————————————————
-if [ "${CLIENT_PKG}" = "mariadb105" ]; then
-  SERVER_PKG="mariadb105-server"
-else
-  SERVER_PKG="${CLIENT_PKG%-client}-server"
-fi
+### 4) Init MariaDB datadir (une seule fois)
+if [ "${CLIENT_PKG}" = "mariadb105" ]; then SERVER_PKG="mariadb105-server"; else SERVER_PKG="${CLIENT_PKG%-client}-server"; fi
 install_if_missing "$SERVER_PKG" "$SERVER_PKG"
-
 if [ ! -d /var/lib/mysql/mysql ]; then
   succ "Initialisation du datadir MariaDB"
-  command -v mariadb-install-db &>/dev/null \
-    && sudo mariadb-install-db --user=mysql --datadir=/var/lib/mysql \
+  sudo mariadb-install-db --user=mysql --datadir=/var/lib/mysql \
     && succ "Datadir initialisé" || err "Échec init datadir"
   sudo chown -R mysql:mysql /var/lib/mysql
 fi
+sudo mkdir -p /var/run/mysqld && sudo chown mysql:mysql /var/run/mysqld
 
-sudo mkdir -p /var/run/mysqld
-sudo chown mysql:mysql /var/run/mysqld
-
-### ——————————————————————————
-### 6) Configuration root MySQL (une seule fois, idempotent)
-### ——————————————————————————
+### 5) Configurer root MySQL (idempotent)
 echo "→ Vérification du plugin root@localhost"
 if plugin=$(sudo mysql --batch --skip-column-names --protocol=socket --user=root \
-     -p"${ROOT_PW}" -e "SELECT plugin FROM mysql.user WHERE user='root' AND host='localhost';" 2>/dev/null) \
+    -p"${ROOT_PW}" -e "SELECT plugin FROM mysql.user WHERE user='root' AND host='localhost';" 2>/dev/null) \
   || plugin=$(sudo mysql --batch --skip-column-names --protocol=socket --user=root \
-     -e "SELECT plugin FROM mysql.user WHERE user='root' AND host='localhost';"); then
+    -e "SELECT plugin FROM mysql.user WHERE user='root' AND host='localhost';"); then
 
   if [ "$plugin" != "mysql_native_password" ]; then
     echo "→ Passage en mysql_native_password"
@@ -138,17 +102,33 @@ SQL
   else
     succ "root@localhost déjà en mysql_native_password"
   fi
-
 else
-  err "Impossible de détecter le plugin de root"
+  err "Impossible de détecter le plugin root"
 fi
 
-### ——————————————————————————
-### 7) Boucle de configuration pour chaque client
-### ——————————————————————————
+### 6) Configurer SSHD (password auth)
+SSHD=/etc/ssh/sshd_config
+sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' "$SSHD"
+sudo sed -i 's/^#\?ChallengeResponseAuthentication.*/ChallengeResponseAuthentication yes/' "$SSHD"
+sudo sed -i 's/^#\?UsePAM.*/UsePAM yes/' "$SSHD"
+sudo systemctl reload sshd && succ "sshd rechargé avec PasswordAuth"
+
+### 7) Configurer vsftpd pour options essentielles et désactiver userlist
+VSF=/etc/vsftpd/vsftpd.conf
+sudo sed -i 's/^#\?local_enable=.*/local_enable=YES/'      "$VSF"
+sudo sed -i 's/^#\?write_enable=.*/write_enable=YES/'      "$VSF"
+sudo sed -i 's/^#\?chroot_local_user=.*/chroot_local_user=YES/' "$VSF"
+# commenter les userlist_*
+sudo sed -i 's/^\(userlist_enable\|userlist_file\|userlist_deny\)=.*$/# &/' "$VSF"
+if ! grep -q '^allow_writeable_chroot=' "$VSF"; then
+  echo 'allow_writeable_chroot=YES' | sudo tee -a "$VSF"
+fi
+sudo systemctl restart vsftpd && succ "vsftpd reconfiguré"
+
+### 8) Boucle de configuration pour chaque client
 for USER_NAME in "${USERS[@]}"; do
   WEB_DIR="/var/www/${USER_NAME}"
-  VHOST_CONF="/etc/nginx/conf.d/${DOMAIN}.conf"
+  VHOST="/etc/nginx/conf.d/${DOMAIN}.conf"
   DB_NAME="${USER_NAME}_db"
   DB_USER="${USER_NAME}"
   DB_PASS="${PASSWORD}"
@@ -166,18 +146,32 @@ SQL
 
   # Utilisateur système
   if ! id "$USER_NAME" &>/dev/null; then
-    sudo useradd -m -d "$WEB_DIR" -s /sbin/nologin "$USER_NAME"
-    succ "Utilisateur système $USER_NAME ajouté"
+    sudo useradd -m -d "$WEB_DIR" -s /bin/bash "$USER_NAME"
+    succ "Utilisateur système $USER_NAME ajouté (home=$WEB_DIR)"
+  else
+    sudo usermod -d "$WEB_DIR" -s /bin/bash "$USER_NAME"
+    succ "Home de $USER_NAME mis à $WEB_DIR"
   fi
   echo "$USER_NAME:${PASSWORD}" | sudo chpasswd
   succ "Mot de passe système défini pour $USER_NAME"
 
-  # Web dir & vHost nginx
-  [ ! -d "$WEB_DIR" ] && sudo mkdir -p "$WEB_DIR" && sudo chmod 755 "$WEB_DIR"
-  succ "Web dir $WEB_DIR prêt"
+  # ~/.bash_profile
+  sudo tee "${WEB_DIR}/.bash_profile" >/dev/null <<'EOF'
+# Source global configs
+[ -f /etc/profile ] && . /etc/profile
+[ -f /etc/bashrc ]   && . /etc/bashrc
+# Aller dans le dossier home (web dir)
+cd "$HOME"
+EOF
+  succ "~/.bash_profile créé pour $USER_NAME"
 
-  if [ ! -f "$VHOST_CONF" ]; then
-    sudo tee "$VHOST_CONF" >/dev/null <<EOF
+  # Web dir & vHost nginx
+  [ ! -d "$WEB_DIR" ] && sudo mkdir -p "$WEB_DIR"
+  sudo chown -R "${USER_NAME}:${USER_NAME}" "$WEB_DIR"
+  sudo chmod -R 755 "$WEB_DIR"
+  succ "Web dir $WEB_DIR prêt"
+  if [ ! -f "$VHOST" ]; then
+    sudo tee "$VHOST" >/dev/null <<EOF
 server {
   listen 80;
   server_name ${DOMAIN};
@@ -189,7 +183,7 @@ EOF
     succ "vHost nginx ajouté pour ${DOMAIN}"
     sudo nginx -t && sudo systemctl reload nginx && succ "nginx rechargé"
   else
-    succ "vHost nginx pour ${DOMAIN} déjà existant"
+    succ "vHost pour ${DOMAIN} déjà existant"
   fi
 
   # FTP (vsftpd)
@@ -218,7 +212,7 @@ EOF
     succ "Samba déjà configuré pour $USER_NAME"
   fi
 
-  # Récapitulatif pour ce client
+  # Récapitulatif
   cat <<EOF
 
 === IDENTIFIANTS ${USER_NAME} ===
@@ -230,7 +224,6 @@ EOF
 • SQL client  : ${DB_USER} / ${DB_PASS} (base ${DB_NAME})
 
 EOF
-
 done
 
-succ "Tous les clients (${USERS[*]}) ont été configurés avec le domaine ${DOMAIN} et le mot de passe commun."
+succ "Tous les clients (${USERS[*]}) ont été configurés."
