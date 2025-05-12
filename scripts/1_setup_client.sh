@@ -3,28 +3,71 @@ set -euo pipefail
 
 # Usage :
 #   sudo bash setup_client.sh -u user1 [user2 …] -p PASSWORD -d DOMAIN
+# Example :
+#   sudo bash setup_client.sh -u guillaume antho -p S3cr3tP@ss -d heh.lan
 
 ### ——————————————————————————
 ### Couleurs & helpers
 ### ——————————————————————————
 RED=$'\e[31m'; GREEN=$'\e[32m'; BLUE=$'\e[34m'; RESET=$'\e[0m'
-function err  { printf "%b[ERREUR] %s%b\n" "$RED" "$1" "$RESET" >&2; exit 1; }
-function succ { printf "%b[OK]    %s%b\n" "$GREEN" "$1" "$RESET"; }
-function info { printf "%b[INFO]   %s%b\n" "$BLUE" "$1" "$RESET"; }
+
+function show_usage {
+  cat <<EOF
+Usage : $0 -u user1 [user2 …] -p PASSWORD -d DOMAIN
+
+Paramètres obligatoires :
+  -u   Liste d'un ou plusieurs utilisateurs (séparés par des espaces)
+  -p   Mot de passe commun aux utilisateurs
+  -d   Nom de domaine (ex. heh.lan)
+
+Exemple :
+  sudo bash $0 -u guillaume antho -p S3cr3tP@ss -d heh.lan
+EOF
+}
+
+function err {
+  printf "%b[ERREUR] %s%b\n\n" "$RED" "$1" "$RESET" >&2
+  show_usage
+  exit 1
+}
+
+function succ {
+  printf "%b[OK]    %s%b\n" "$GREEN" "$1" "$RESET"
+}
+
+function info {
+  printf "%b[INFO]   %s%b\n" "$BLUE" "$1" "$RESET"
+}
 
 ### 1) Parse options
 PASSWORD=''; DOMAIN=''; USERS=()
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -u) shift; while [[ $# -gt 0 && $1 != -* ]]; do USERS+=("$1"); shift; done ;;
-    -p) PASSWORD=$2; shift 2 ;;
-    -d) DOMAIN=$2;   shift 2 ;;
-    *)  err "Usage : $0 -u user1 [user2 …] -p PASSWORD -d DOMAIN" ;;
+    -u)
+      shift
+      while [[ $# -gt 0 && $1 != -* ]]; do
+        USERS+=("$1")
+        shift
+      done
+      ;;
+    -p)
+      PASSWORD=$2
+      shift 2
+      ;;
+    -d)
+      DOMAIN=$2
+      shift 2
+      ;;
+    *)
+      err "Argument inconnu : $1"
+      ;;
   esac
 done
-[ ${#USERS[@]} -ge 1 ]  || err "Il faut au moins un utilisateur après -u"
-[ -n "$PASSWORD" ]     || err "Il manque -p PASSWORD"
-[ -n "$DOMAIN"   ]     || err "Il manque -d DOMAIN"
+
+# Vérification des paramètres obligatoires
+[ ${#USERS[@]} -ge 1 ] || err "Il faut au moins un utilisateur après -u"
+[ -n "$PASSWORD"    ] || err "Il manque -p PASSWORD"
+[ -n "$DOMAIN"      ] || err "Il manque -d DOMAIN"
 
 # mot de passe root MariaDB
 ROOT_PW='JSShFZtpt35MHX'
@@ -117,7 +160,6 @@ VSF=/etc/vsftpd/vsftpd.conf
 sudo sed -i 's/^#\?local_enable=.*/local_enable=YES/'      "$VSF"
 sudo sed -i 's/^#\?write_enable=.*/write_enable=YES/'      "$VSF"
 sudo sed -i 's/^#\?chroot_local_user=.*/chroot_local_user=YES/' "$VSF"
-# commenter les userlist_*
 sudo sed -i 's/^\(userlist_enable\|userlist_file\|userlist_deny\)=.*$/# &/' "$VSF"
 if ! grep -q '^allow_writeable_chroot=' "$VSF"; then
   echo 'allow_writeable_chroot=YES' | sudo tee -a "$VSF"
@@ -229,6 +271,7 @@ EOF
 • SQL client  : ${DB_USER} / ${DB_PASS} (base ${DB_NAME})
 
 EOF
+
 done
 
 succ "Tous les clients (${USERS[*]}) ont été configurés."
