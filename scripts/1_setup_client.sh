@@ -54,13 +54,15 @@ while [[ $# -gt 0 ]]; do
       PASSWORD=$2; shift 2;;
     -d)
       DOMAIN=$2; shift 2;;
-    *) err "Argument inconnu : $1";;
+    *)
+      err "Argument inconnu : $1"
+      ;;
   esac
 done
 
 [ ${#USERS[@]} -ge 1 ] || err "Il faut au moins un utilisateur après -u"
-[ -n "$PASSWORD" ] || err "Il manque -p PASSWORD"
-[ -n "$DOMAIN"   ] || err "Il manque -d DOMAIN"
+[ -n "$PASSWORD" ]    || err "Il manque -p PASSWORD"
+[ -n "$DOMAIN"   ]    || err "Il manque -d DOMAIN"
 
 # Mot de passe root MariaDB
 ROOT_PW='JSShFZtpt35MHX'
@@ -73,8 +75,8 @@ succ "Clients à provisionner : ${USERS[*]}"
 PKG_MGR=""; CLIENT_PKG=""
 . /etc/os-release 2>/dev/null || true
 case "${ID:-}-${VERSION_ID:-}" in
-  amzn-2023)      PKG_MGR=dnf; CLIENT_PKG=mariadb105;;
-  amzn-2)         PKG_MGR=yum; CLIENT_PKG=mariadb;;
+  amzn-2023)      PKG_MGR=dnf;     CLIENT_PKG=mariadb105;;
+  amzn-2)         PKG_MGR=yum;     CLIENT_PKG=mariadb;;
   ubuntu*|debian*)PKG_MGR=apt-get; CLIENT_PKG=mariadb-client;;
   *)              PKG_MGR=$(command -v dnf||command -v yum||echo apt-get); CLIENT_PKG=mariadb-client;;
 esac
@@ -98,7 +100,13 @@ for svc in nginx vsftpd smb nmb mariadb; do
   sudo systemctl enable --now "$svc" && succ "Service $svc activé"
 done
 
-### 4) Init MariaDB datadir
+### 4) Ouverture des ports FTP dans le firewall (firewalld)
+info "Ouverture des ports FTP 21 et 40000-40100 dans firewalld"
+sudo firewall-cmd --add-port=21/tcp --permanent && succ "Port 21/tcp ouvert"
+sudo firewall-cmd --add-port=40000-40100/tcp --permanent && succ "Plage 40000-40100/tcp ouverte"
+sudo firewall-cmd --reload && succ "firewalld rechargé"
+
+### 5) Init MariaDB datadir
 if [[ $CLIENT_PKG = mariadb105 ]]; then
   SERVER_PKG=mariadb105-server
 else
@@ -115,7 +123,7 @@ sudo mkdir -p /var/run/mysqld && sudo chown mysql:mysql /var/run/mysqld
 # Assurer que le service MariaDB tourne avant d'appliquer le mot de passe root
 sudo systemctl enable --now mariadb.service && succ "Service mariadb démarré pour configuration"
 
-### 5) Configurer root MySQL
+### 6) Configurer root MySQL
 succ "→ Définition du mot de passe root@localhost"
 sudo mysql --protocol=socket -uroot -p"$ROOT_PW" <<EOF
 ALTER USER 'root'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('$ROOT_PW');
@@ -123,25 +131,52 @@ FLUSH PRIVILEGES;
 EOF
 succ "Mot de passe root configuré"
 
-### 6) Configurer SSHD (password auth)
+### 7) Configurer SSHD (password auth)
 SSHD=/etc/ssh/sshd_config
 sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' "$SSHD"
 sudo sed -i 's/^#\?ChallengeResponseAuthentication.*/ChallengeResponseAuthentication yes/' "$SSHD"
 sudo sed -i 's/^#\?UsePAM.*/UsePAM yes/' "$SSHD"
 sudo systemctl reload sshd && succ "sshd rechargé"
 
-### 7) Configurer vsftpd
+### 8) Configurer vsftpd pour chroot par utilisateur + FTP standalone
 VSF=/etc/vsftpd/vsftpd.conf
-sudo sed -i 's/^#\?local_enable=.*/local_enable=YES/' "$VSF"
-sudo sed -i 's/^#\?write_enable=.*/write_enable=YES/' "$VSF"
-sudo sed -i 's/^#\?chroot_local_user=.*/chroot_local_user=YES/' "$VSF"
-sudo sed -i 's/^userlist_enable=/# &/' "$VSF"
-if ! grep -q '^allow_writeable_chroot=' "$VSF"; then
-  echo 'allow_writeable_chroot=YES' | sudo tee -a "$VSF"
-fi
-sudo systemctl restart vsftpd && succ "vsftpd reconfiguré"
+# mode standalone IPv4
+sudo sed -i 's|^#\?listen=.*|listen=YES|'               "$VSF"
+sudo sed -i 's|^#\?listen_ipv6=.*|listen_ipv6=NO|'      "$VSF"
+# PAM
+sudo sed -i 's|^#\?pam_service_name=.*|pam_service_name=vsftpd|' "$VSF"
+# habiliter les comptes locaux
+sudo sed -i 's|^#\?local_enable=.*|local_enable=YES|'   "$VSF"
+sudo sed -i 's|^#\?write_enable=.*|write_enable=YES|'   "$VSF"
+# chroot et autoriser write dans chroot
+sudo sed -i 's|^#\?chroot_local_user=.*|chroot_local_user=YES|'       "$VSF"
+sudo sed -i 's|^#\?allow_writeable_chroot=.*|allow_writeable_chroot=YES|' "$VSF"
+# config par utilisateur
+sudo sed -i 's|^#\?user_config_dir=.*|user_config_dir=/etc/vsftpd_user_conf|' "$VSF"
 
-### 8) Boucle de configuration pour chaque client
+# Passive mode (ports 40000–40100, adresse du serveur)
+if ! grep -q '^pasv_enable=' "$VSF"; then
+  cat <<EOF | sudo tee -a "$VSF"
+
+# Passive FTP
+pasv_enable=YES
+pasv_min_port=40000
+pasv_max_port=40100
+pasv_address=$(hostname -I | awk '{print $1}')
+EOF
+fi
+
+# Redémarrage
+sudo systemctl restart vsftpd \
+  && succ "vsftpd redémarré (FTP standalone activé)" \
+  || err "Impossible de redémarrer vsftpd"
+
+# Créer le dossier de configuration individuelle FTP
+sudo mkdir -p /etc/vsftpd_user_conf
+sudo chown root:root /etc/vsftpd_user_conf
+sudo chmod 755 /etc/vsftpd_user_conf
+
+### 9) Boucle de configuration pour chaque client
 for USER_NAME in "${USERS[@]}"; do
   WEB_DIR="/var/www/$USER_NAME"
   VHOST="/etc/nginx/conf.d/$DOMAIN.conf"
@@ -173,8 +208,13 @@ EOF
     sudo usermod -d "$WEB_DIR" -s /bin/bash "$USER_NAME"
     succ "Home de $USER_NAME mis à $WEB_DIR"
   fi
+
   echo "$USER_NAME:$PASSWORD" | sudo chpasswd
   succ "Mot de passe système défini pour $USER_NAME"
+
+  # Config FTP individuel : chroot dans son web dir
+  echo "local_root=$WEB_DIR" | sudo tee /etc/vsftpd_user_conf/"$USER_NAME" >/dev/null
+  sudo chmod 644 /etc/vsftpd_user_conf/"$USER_NAME"
 
   # ~/.bash_profile
   sudo tee "$WEB_DIR/.bash_profile" >/dev/null <<PROFILE
@@ -206,14 +246,6 @@ NGINX
     sudo nginx -t && sudo systemctl reload nginx && succ "nginx rechargé"
   else
     succ "vHost pour $DOMAIN déjà existant"
-  fi
-
-  # FTP (vsftpd)
-  if ! grep -qx "$USER_NAME" /etc/vsftpd/user_list; then
-    echo "$USER_NAME" | sudo tee -a /etc/vsftpd/user_list >/dev/null
-    sudo systemctl restart vsftpd && succ "FTP configuré pour $USER_NAME"
-  else
-    succ "FTP déjà configuré pour $USER_NAME"
   fi
 
   # Samba
