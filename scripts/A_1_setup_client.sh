@@ -100,6 +100,16 @@ for svc in nginx vsftpd smb nmb mariadb; do
   sudo systemctl enable --now "$svc" && succ "Service $svc activé"
 done
 
+### 3.b) Vérification et installation de firewalld
+if ! command -v firewall-cmd &>/dev/null; then
+  info "firewalld absent, installation en cours…"
+  sudo $PKG_MGR install -y firewalld \
+    && succ "firewalld installé" \
+    || err "Impossible d'installer firewalld"
+fi
+# Activer et démarrer firewalld si ce n’est pas déjà fait
+sudo systemctl enable --now firewalld && succ "Service firewalld activé"
+
 ### 4) Ouverture des ports FTP dans le firewall (firewalld)
 info "Ouverture des ports FTP 21 et 40000-40100 dans firewalld"
 sudo firewall-cmd --add-port=21/tcp --permanent && succ "Port 21/tcp ouvert"
@@ -149,8 +159,12 @@ sudo sed -i 's|^#\?pam_service_name=.*|pam_service_name=vsftpd|' "$VSF"
 sudo sed -i 's|^#\?local_enable=.*|local_enable=YES|'   "$VSF"
 sudo sed -i 's|^#\?write_enable=.*|write_enable=YES|'   "$VSF"
 # chroot et autoriser write dans chroot
-sudo sed -i 's|^#\?chroot_local_user=.*|chroot_local_user=YES|'       "$VSF"
-sudo sed -i 's|^#\?allow_writeable_chroot=.*|allow_writeable_chroot=YES|' "$VSF"
+sudo sed -i 's|^#\?chroot_local_user=.*|chroot_local_user=YES|' "$VSF"
+if grep -q '^allow_writeable_chroot' "$VSF"; then
+  sudo sed -i 's|^allow_writeable_chroot=.*|allow_writeable_chroot=YES|' "$VSF"
+else
+  echo 'allow_writeable_chroot=YES' | sudo tee -a "$VSF" >/dev/null
+fi
 # config par utilisateur
 sudo sed -i 's|^#\?user_config_dir=.*|user_config_dir=/etc/vsftpd_user_conf|' "$VSF"
 
@@ -179,35 +193,40 @@ sudo chmod 755 /etc/vsftpd_user_conf
 ### 9) Boucle de configuration pour chaque client
 for USER_NAME in "${USERS[@]}"; do
   WEB_DIR="/var/www/$USER_NAME"
-  VHOST="/etc/nginx/conf.d/$DOMAIN.conf"
+  HOME_DIR="/home/$USER_NAME"
+  VHOST="/etc/nginx/conf.d/${USER_NAME}.${DOMAIN}.conf"
   DB_NAME="${USER_NAME}_db"
   DB_USER="$USER_NAME"
   DB_PASS="$PASSWORD"
 
   if id "$USER_NAME" &>/dev/null && [[ -d $WEB_DIR ]]; then
-    info "Utilisateur $USER_NAME existe déjà, configuration ignorée"
-    continue
-  fi
+    info "Utilisateur $USER_NAME existe déjà, mise à jour de la configuration"
+  else
+    succ "=== Configuration de $USER_NAME ==="
 
-  succ "=== Configuration de $USER_NAME ==="
-
-  # SQL : base & user
-  sudo mysql --protocol=socket -uroot -p"$ROOT_PW" <<EOF
+    # SQL : base & user
+    sudo mysql --protocol=socket -uroot -p"$ROOT_PW" <<EOF
 CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;
 CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
 GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 EOF
-  succ "SQL : base & user pour $USER_NAME"
+    succ "SQL : base & user pour $USER_NAME"
 
-  # Utilisateur système
-  if ! id "$USER_NAME" &>/dev/null; then
-    sudo useradd -m -d "$WEB_DIR" -s /bin/bash "$USER_NAME"
-    succ "Utilisateur système $USER_NAME ajouté (home=$WEB_DIR)"
-  else
-    sudo usermod -d "$WEB_DIR" -s /bin/bash "$USER_NAME"
-    succ "Home de $USER_NAME mis à $WEB_DIR"
+    # Création de l’utilisateur
+    sudo useradd -m -d "$HOME_DIR" -s /bin/bash "$USER_NAME" \
+      && succ "Utilisateur système $USER_NAME ajouté (home=$HOME_DIR)" \
+      || ( sudo usermod -d "$HOME_DIR" -s /bin/bash "$USER_NAME" \
+           && succ "Home de $USER_NAME défini sur $HOME_DIR" )
+    echo "$USER_NAME:$PASSWORD" | sudo chpasswd
+    succ "Mot de passe système défini pour $USER_NAME"
   fi
+  
+  # Créer séparément le web dir et y donner les droits
+  sudo mkdir -p "$WEB_DIR"
+  sudo chown -R "$USER_NAME:$USER_NAME" "$WEB_DIR"
+  sudo chmod -R 755 "$WEB_DIR"
+  succ "Web dir $WEB_DIR prêt (séparé du home)"
 
   echo "$USER_NAME:$PASSWORD" | sudo chpasswd
   succ "Mot de passe système défini pour $USER_NAME"
@@ -216,8 +235,38 @@ EOF
   echo "local_root=$WEB_DIR" | sudo tee /etc/vsftpd_user_conf/"$USER_NAME" >/dev/null
   sudo chmod 644 /etc/vsftpd_user_conf/"$USER_NAME"
 
+  # Permissions web dir
+  sudo mkdir -p "$WEB_DIR"
+  sudo chown -R "$USER_NAME:$USER_NAME" "$WEB_DIR"
+  sudo chmod -R 755 "$WEB_DIR"
+  succ "Web dir $WEB_DIR prêt"
+
+# Créer un index.html avec un <h1> de bienvenue
+sudo tee "$WEB_DIR/index.html" >/dev/null <<EOF
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Bienvenue</title>
+</head>
+<body>
+  <h1>Bienvenue $USER_NAME dans votre espace web</h1>
+</body>
+</html>
+EOF
+sudo chown "$USER_NAME:$USER_NAME" "$WEB_DIR/index.html"
+sudo chmod 644 "$WEB_DIR/index.html"
+succ "Fichier index.html personnalisé créé dans $WEB_DIR"
+
+  # vsftpd per-user config
+  sudo tee "/etc/vsftpd_user_conf/$USER_NAME" >/dev/null <<EOF
+local_root=$WEB_DIR
+EOF
+  succ "vsftpd : local_root défini sur $WEB_DIR pour $USER_NAME"
+  sudo systemctl restart vsftpd && succ "vsftpd rechargé pour $USER_NAME"
+
   # ~/.bash_profile
-  sudo tee "$WEB_DIR/.bash_profile" >/dev/null <<PROFILE
+  sudo tee "$HOME_DIR/.bash_profile" >/dev/null <<PROFILE
 # Source global configs
 [ -f /etc/profile ] && . /etc/profile
 [ -f /etc/bashrc ]   && . /etc/bashrc
@@ -225,18 +274,13 @@ cd "\$HOME"
 PROFILE
   succ "~/.bash_profile créé pour $USER_NAME"
 
-  # Permissions web dir
-  sudo mkdir -p "$WEB_DIR"
-  sudo chown -R "$USER_NAME:$USER_NAME" "$WEB_DIR"
-  sudo chmod -R 755 "$WEB_DIR"
-  succ "Web dir $WEB_DIR prêt"
 
   # vHost nginx
   if [[ ! -f $VHOST ]]; then
     sudo tee "$VHOST" >/dev/null <<NGINX
 server {
   listen 80;
-  server_name $DOMAIN;
+  server_name ${USER_NAME}.${DOMAIN};
   root $WEB_DIR;
   index index.html index.htm;
   location / { try_files \$uri \$uri/ =404; }
@@ -269,9 +313,8 @@ SAMBA
   cat <<EOF
 
 === IDENTIFIANTS $USER_NAME ===
-• Domaine     : http://$DOMAIN
+• Domaine     : http://${USER_NAME}.${DOMAIN}
 • Web dir     : $WEB_DIR
-• Système     : $USER_NAME / $PASSWORD
 • FTP/Samba   : $USER_NAME / $PASSWORD
 • SQL root    : root / $ROOT_PW
 • SQL client  : $DB_USER / $DB_PASS (base $DB_NAME)
