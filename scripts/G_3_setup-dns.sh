@@ -26,7 +26,7 @@ error()    { echo -e "${RED}[ERROR]${RESET} $*"; }
 DOMAIN="heh.lan"
 NS_LABEL="master"
 PRIVATE_NET="10.42.0.0/16"
-PRIVATE_IP="10.42.0.157"
+PRIVATE_IP="10.42.0.222"
 REVERSE_ZONE="0.42.10.in-addr.arpa"
 ZONE_DIR="/var/named"
 ADMIN_EMAIL="admin.${DOMAIN}"
@@ -77,7 +77,7 @@ cat > /etc/named.conf <<EOF
 options {
     directory       "${ZONE_DIR}";
     recursion       yes;
-    allow-query     { 127.0.0.1; ${PRIVATE_NET}; };
+    allow-query     { any; };
     allow-recursion { 127.0.0.1; ${PRIVATE_NET}; };
     forwarders      { 8.8.8.8; 8.8.4.4; };
     dnssec-validation auto;
@@ -183,3 +183,16 @@ echo -e "\n${MAGENTA}${BOLD}✅ DNS privé '${DOMAIN}' configuré${RESET}"
 echo "• Serveur DNS     : ${PRIVATE_IP} (accessible uniquement sur ${PRIVATE_NET})"
 echo "• Tous les sous-domaines *.${DOMAIN} → ${PRIVATE_IP}"
 echo -e "Testez avec : ${CYAN}dig @${PRIVATE_IP} any.${DOMAIN} A${RESET}"
+
+# 11) Vérification de la configuration du pare-feu
+sudo firewall-cmd --zone=public --add-service=dns --permanent
+sudo firewall-cmd --zone=public --list-services
+sudo firewall-cmd --zone=public --list-rich-rules
+sudo firewall-cmd --reload
+
+sudo named-checkconf -z
+sudo rndc reconfig
+
+sudo named-checkzone heh.lan /var/named/heh.lan.db
+sudo named-checkzone 0.42.10.in-addr.arpa /var/named/db.0.42.10.in-addr.arpa
+sudo rndc reload
