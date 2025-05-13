@@ -114,6 +114,10 @@ sudo systemctl enable --now firewalld && succ "Service firewalld activé"
 info "Ouverture des ports FTP 21 et 40000-40100 dans firewalld"
 sudo firewall-cmd --add-port=21/tcp --permanent && succ "Port 21/tcp ouvert"
 sudo firewall-cmd --add-port=40000-40100/tcp --permanent && succ "Plage 40000-40100/tcp ouverte"
+# → Ajout du service Samba (SMB)
+info "Ouverture du service Samba (SMB) dans firewalld"
+sudo firewall-cmd --permanent --add-service=samba && succ "Service samba autorisé dans firewalld"
+
 sudo firewall-cmd --reload && succ "firewalld rechargé"
 
 ### 5) Init MariaDB datadir
