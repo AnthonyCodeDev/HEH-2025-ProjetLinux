@@ -243,17 +243,9 @@ EOF
 
 # Créer un index.html avec un <h1> de bienvenue
 sudo tee "$WEB_DIR/index.html" >/dev/null <<EOF
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <title>Bienvenue</title>
-</head>
-<body>
-  <h1>Bienvenue $USER_NAME dans votre espace web</h1>
-</body>
-</html>
+<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Bienvenue</title><style>body{margin:0;display:flex;height:100vh;align-items:center;justify-content:center;font-family:-apple-system,system-ui,sans-serif;background:#fff}h1{font-size:2rem}span{color:#007AFF}</style></head><body><h1>Bienvenue <span>$USER_NAME</span> dans votre espace web</h1></body></html>
 EOF
+
 sudo chown "$USER_NAME:$USER_NAME" "$WEB_DIR/index.html"
 sudo chmod 644 "$WEB_DIR/index.html"
 succ "Fichier index.html personnalisé créé dans $WEB_DIR"
