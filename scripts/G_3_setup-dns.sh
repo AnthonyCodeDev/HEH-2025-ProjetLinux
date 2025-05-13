@@ -1,51 +1,113 @@
 #!/usr/bin/env bash
-# -----------------------------------------------------------------------------
-# setup-dns-private.sh — Installe et configure un DNS maître + cache + reverse
-# Strictement privé : uniquement accessible sur 10.42.0.0/16
-# Pour Amazon Linux 2 / RHEL / CentOS (yum)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
+# setup-dns-private.sh — Installe et configure un DNS maître + cache + reverse 
+# Strictement privé : uniquement accessible sur 10.42.0.0/16 
+# Pour Amazon Linux 2 / RHEL / CentOS (yum) 
+# ----------------------------------------------------------------------------- 
 set -euo pipefail
 
-### ─── COULEURS ───────────────────────────────────────────────────────────────
-CSI="\033["
-RESET="${CSI}0m"
-BOLD="${CSI}1m"
-RED="${CSI}31m"
-GREEN="${CSI}32m"
-YELLOW="${CSI}33m"
-BLUE="${CSI}34m"
-MAGENTA="${CSI}35m"
-CYAN="${CSI}36m"
+### ─── COULEURS ─────────────────────────────────────────────────────────────── 
+CSI="\033[" 
+RESET="${CSI}0m" 
+BOLD="${CSI}1m" 
+RED="${CSI}31m" 
+GREEN="${CSI}32m" 
+YELLOW="${CSI}33m" 
+BLUE="${CSI}34m" 
+MAGENTA="${CSI}35m" 
+CYAN="${CSI}36m" 
 
-info()     { echo -e "${BLUE}[INFO]${RESET}  $*"; }
-success()  { echo -e "${GREEN}[ OK ]${RESET}  $*"; }
-warn()     { echo -e "${YELLOW}[WARN]${RESET} $*"; }
+info()     { echo -e "${BLUE}[INFO]${RESET}  $*"; } 
+success()  { echo -e "${GREEN}[ OK ]${RESET}  $*"; } 
+warn()     { echo -e "${YELLOW}[WARN]${RESET} $*"; } 
 error()    { echo -e "${RED}[ERROR]${RESET} $*"; }
 
-## ─── CONFIGURATION ────────────────────────────────────────────────────────────
-DOMAIN="heh.lan"
-NS_LABEL="master"
-PRIVATE_NET="10.42.0.0/16"
-PRIVATE_IP="10.42.0.222"
-REVERSE_ZONE="0.42.10.in-addr.arpa"
-ZONE_DIR="/var/named"
-ADMIN_EMAIL="admin.${DOMAIN}"
-LOG_DIR="/var/log/named"
-## ──────────────────────────────────────────────────────────────────────────────
+usage() {
+  cat <<EOF
 
-# 0) Droits
+Usage: $0 -ip <PRIVATE_IP>
+
+Installe et configure un serveur DNS privé (master + cache + reverse)
+accessible uniquement sur le réseau 10.42.0.0/16.
+
+Options obligatoires :
+  -ip <IP>       Adresse IPv4 du serveur DNS (ex. 10.42.0.238)
+
+EOF
+}
+
+# 0) Vérification des droits
 if [ "$EUID" -ne 0 ]; then
   error "Lancez ce script avec sudo ou en root."
   exit 1
 fi
 
-# 1) Installer bind, SELinux tools et firewalld
+# 1) Parsing des arguments
+PRIVATE_IP=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -ip)
+      if [ -n "${2-}" ] && [[ ! "$2" =~ ^- ]]; then
+        PRIVATE_IP="$2"
+        shift 2
+      else
+        error "Option -ip requiert une adresse IPv4 en argument."
+        usage
+        exit 1
+      fi
+      ;;
+    -*)
+      error "Option inconnue : $1"
+      usage
+      exit 1
+      ;;
+    *)
+      error "Argument inattendu : $1"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [ -z "$PRIVATE_IP" ]; then
+  error "Adresse IPv4 non fournie."
+  usage
+  exit 1
+fi
+
+# 2) Validation de la syntaxe IPv4 basique
+if ! [[ $PRIVATE_IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+  error "Adresse IPv4 invalide : ${PRIVATE_IP}"
+  usage
+  exit 1
+fi
+
+# 3) Validation de chaque octet (0–255)
+IFS='.' read -r o1 o2 o3 o4 <<< "$PRIVATE_IP"
+for oct in $o1 $o2 $o3 $o4; do
+  if (( oct < 0 || oct > 255 )); then
+    error "Octet IPv4 hors plage (0–255) : ${oct}"
+    exit 1
+  fi
+done
+
+## ─── CONFIGURATION ────────────────────────────────────────────────────────────
+DOMAIN="heh.lan"
+NS_LABEL="master"
+PRIVATE_NET="10.42.0.0/16"
+REVERSE_ZONE="0.42.10.in-addr.arpa"
+ZONE_DIR="/var/named"
+ADMIN_EMAIL="admin.${DOMAIN}"
+LOG_DIR="/var/log/named"
+SERIAL="$(date +%Y%m%d)01"
+
+# 4) Installation des paquets
 info "Installation des paquets nécessaires"
 yum update -y &>/dev/null
 yum install -y bind bind-utils policycoreutils-python-utils firewalld &>/dev/null
 success "Paquets installés"
 
-# 2) Configurer firewalld pour n’autoriser DNS que sur le LAN
+# 5) Configuration de firewalld
 info "Activation de firewalld et ouverture du DNS pour ${PRIVATE_NET}"
 systemctl enable --now firewalld
 firewall-cmd --permanent \
@@ -55,7 +117,7 @@ firewall-cmd --permanent \
 firewall-cmd --reload
 success "Firewall configuré"
 
-# 3) Création du répertoire de logs et permissions
+# 6) Préparation des logs
 info "Création des logs BIND"
 mkdir -p "${LOG_DIR}"
 touch "${LOG_DIR}/query.log" "${LOG_DIR}/debug.log"
@@ -63,16 +125,13 @@ chown named:named "${LOG_DIR}"/*.log
 chmod 640 "${LOG_DIR}"/*.log
 success "Répertoire de logs prêt"
 
-# 4) Sauvegarde de la conf BIND existante
+# 7) Sauvegarde de la configuration existante
 info "Sauvegarde de /etc/named.conf"
 cp -p /etc/named.conf /etc/named.conf.bak.$(date +%Y%m%d%H%M)
-success "Sauvegarde de named.conf effectuée"
+success "Sauvegarde effectuée"
 
-# 5) Serial basé sur la date
-SERIAL="$(date +%Y%m%d)01"
-
-# 6) Écrire /etc/named.conf
-info "Mise à jour de /etc/named.conf (écoute et requêtes restreintes au LAN)"
+# 8) Écriture de /etc/named.conf
+info "Mise à jour de /etc/named.conf (écoute et requêtes restreintes)"
 cat > /etc/named.conf <<EOF
 options {
     directory       "${ZONE_DIR}";
@@ -81,8 +140,8 @@ options {
     allow-recursion { 127.0.0.1; ${PRIVATE_NET}; };
     forwarders      { 8.8.8.8; 8.8.4.4; };
     dnssec-validation auto;
-    auth-nxdomain no;      /* conforme RFC1035 */
-    version "none";        /* ne pas divulguer la version de BIND */
+    auth-nxdomain no;
+    version "none";
     listen-on port 53 { 127.0.0.1; ${PRIVATE_IP}; };
     listen-on-v6 port 53 { ::1; };
 };
@@ -121,12 +180,12 @@ zone "${REVERSE_ZONE}" IN {
 EOF
 success "named.conf mis à jour"
 
-# 7) Création des fichiers de zone
-info "Création des zones dans ${ZONE_DIR}"
+# 9) Création des zones
+info "Création des fichiers de zone dans ${ZONE_DIR}"
 mkdir -p "${ZONE_DIR}"
 cd "${ZONE_DIR}"
 
-# zone directe
+# Zone directe
 cat > "${DOMAIN}.db" <<EOF
 \$ORIGIN ${DOMAIN}.
 \$TTL 86400
@@ -141,7 +200,7 @@ cat > "${DOMAIN}.db" <<EOF
 @      IN A ${PRIVATE_IP}
 EOF
 
-# zone inverse
+# Zone inverse
 LAST_OCTET="${PRIVATE_IP##*.}"
 cat > "db.${REVERSE_ZONE}" <<EOF
 \$ORIGIN ${REVERSE_ZONE}.
@@ -157,7 +216,7 @@ ${LAST_OCTET} IN PTR ${NS_LABEL}.${DOMAIN}.
 EOF
 success "Fichiers de zone créés"
 
-# 8) Permissions et SELinux
+# 10) Permissions et SELinux
 info "Ajustement des permissions et contexte SELinux"
 chown named:named "${ZONE_DIR}/${DOMAIN}.db" "${ZONE_DIR}/db.${REVERSE_ZONE}"
 chmod 640 "${ZONE_DIR}/${DOMAIN}.db" "${ZONE_DIR}/db.${REVERSE_ZONE}"
@@ -166,7 +225,7 @@ semanage fcontext -m -t named_zone_t "${ZONE_DIR}(/.*)?" 2>/dev/null || true
 restorecon -Rv "${ZONE_DIR}" &>/dev/null
 success "Permissions et SELinux OK"
 
-# 9) Validation et rechargement
+# 11) Validation et rechargement
 info "Vérification de la configuration BIND"
 named-checkconf -z
 named-checkzone "${DOMAIN}" "${ZONE_DIR}/${DOMAIN}.db"
@@ -178,21 +237,21 @@ systemctl enable --now named
 rndc reconfig
 success "named actif et configuration rechargée"
 
-# 10) Récapitulatif
+# 12) Récapitulatif
 echo -e "\n${MAGENTA}${BOLD}✅ DNS privé '${DOMAIN}' configuré${RESET}"
 echo "• Serveur DNS     : ${PRIVATE_IP} (accessible uniquement sur ${PRIVATE_NET})"
 echo "• Tous les sous-domaines *.${DOMAIN} → ${PRIVATE_IP}"
 echo -e "Testez avec : ${CYAN}dig @${PRIVATE_IP} any.${DOMAIN} A${RESET}"
 
-# 11) Vérification de la configuration du pare-feu
-sudo firewall-cmd --zone=public --add-service=dns --permanent
-sudo firewall-cmd --zone=public --list-services
-sudo firewall-cmd --zone=public --list-rich-rules
-sudo firewall-cmd --reload
+# 13) Vérification finale du pare-feu et des zones
+firewall-cmd --zone=public --add-service=dns --permanent
+firewall-cmd --zone=public --list-services
+firewall-cmd --zone=public --list-rich-rules
+firewall-cmd --reload
 
-sudo named-checkconf -z
-sudo rndc reconfig
+named-checkconf -z
+rndc reconfig
 
-sudo named-checkzone heh.lan /var/named/heh.lan.db
-sudo named-checkzone 0.42.10.in-addr.arpa /var/named/db.0.42.10.in-addr.arpa
-sudo rndc reload
+named-checkzone "${DOMAIN}" "${ZONE_DIR}/${DOMAIN}.db"
+named-checkzone "${REVERSE_ZONE}" "${ZONE_DIR}/db.${REVERSE_ZONE}"
+rndc reload
