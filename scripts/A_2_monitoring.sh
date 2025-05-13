@@ -14,52 +14,74 @@ function info { printf "%b[INFO]   %s%b\n"  "${BLUE}" "$1" "${RESET}"; }
 ### —───────────────────────────────────
 function show_usage {
   cat <<EOF
-Usage : $0 [-p PORT]
+Usage : $0 [-p PORT] -d DATA_HOST
 
 Paramètres :
   -p   Port d'écoute Cockpit (défaut : 9090)
+  -d   Adresse ou ID du serveur de données (obligatoire)
 EOF
   exit 1
 }
 
 DEFAULT_PORT=9090
 LISTEN_PORT=$DEFAULT_PORT
+DATA_HOST=""
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -p)
       if [[ -n "${2-}" && "$2" =~ ^[0-9]+$ ]]; then
-        LISTEN_PORT=$2; shift 2
+        LISTEN_PORT=$2
+        shift 2
       else
         err "Argument invalide pour -p : doit être un nombre"
       fi
       ;;
-    -h|--help) show_usage ;;
-    *) err "Option inconnue : $1" ;;
+    -d)
+      if [[ -n "${2-}" ]]; then
+        DATA_HOST=$2
+        shift 2
+      else
+        err "Argument manquant pour -d : devez indiquer l'adresse du serveur de données"
+      fi
+      ;;
+    -h|--help)
+      show_usage
+      ;;
+    *)
+      err "Option inconnue : $1"
+      ;;
   esac
 done
-succ "Port Cockpit choisi : $LISTEN_PORT"
 
-# vérifie que le user monitoring est créer
+# Vérification des paramètres obligatoires
+if [[ -z "$DATA_HOST" ]]; then
+  err "Le paramètre -d DATA_HOST est obligatoire (Le paramètre -p PORT est optionnel)
+Exemple : $0 -d <DATA_HOST> [-p <PORT>]
+Exemple : $0 -d 10.45.9.9 -p 9090
+Exemple : $0 -d 10.45.9.9"
+fi
+
+succ "Port Cockpit choisi : $LISTEN_PORT"
+succ "Serveur de données    : $DATA_HOST"
+
+# vérifie que le user monitoring est créé
 if ! id "monitoring" &>/dev/null; then
   err "L'utilisateur monitoring n'existe pas. Veuillez le créer avant de continuer."
-  err "Exécutez la commande suivante : sudo bash A_1_setup_client.sh -u monitoring -p <mot_de_passe> -d heh.lan"
+  err "Exécutez la commande suivante : sudo bash A_1_setup_client.sh -u monitoring -p <mot_de_passe> -d <DATA_HOST>"
 fi
 
 ### —───────────────────────────────────
 ### 1.b) Vérification des droits sudo pour monitoring
 ### —───────────────────────────────────
-# On teste si monitoring a déjà une entrée sudoers
 if ! sudo -l -U monitoring 2>/dev/null | grep -q '(ALL)'; then
   info "→ Configuration des droits sudo pour l'utilisateur monitoring"
-  # Création d'un fichier sudoers dédié (NOPASSWD pour ne pas redemander de mot de passe)
   echo 'monitoring ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/monitoring >/dev/null
-  # Verrouillage des permissions
   sudo chmod 440 /etc/sudoers.d/monitoring
   succ "Privilèges sudo accordés à monitoring (NOPASSWD)"
 else
   succ "L'utilisateur monitoring dispose déjà des droits sudo"
 fi
-
 
 ### —───────────────────────────────────
 ### 2) Libération du port
@@ -79,10 +101,10 @@ fi
 ### —───────────────────────────────────
 . /etc/os-release 2>/dev/null || true
 case "${ID:-}-${VERSION_ID:-}" in
-  ubuntu*|debian*)                   PKG_MGR=apt-get;;
-  amzn-2*)                           PKG_MGR=yum;;
-  amzn-2023*|rhel*|centos*|fedora*) PKG_MGR=dnf;;
-  *)                                 PKG_MGR=$(command -v dnf||command -v yum||echo apt-get);;
+  ubuntu*|debian*)                    PKG_MGR=apt-get ;;
+  amzn-2*)                            PKG_MGR=yum     ;;
+  amzn-2023*|rhel*|centos*|fedora*)  PKG_MGR=dnf     ;;
+  *)                                  PKG_MGR=$(command -v dnf||command -v yum||echo apt-get) ;;
 esac
 succ "Gestionnaire de paquets détecté : $PKG_MGR"
 
@@ -99,7 +121,8 @@ if ! command -v podman &>/dev/null; then
 fi
 
 if command -v podman &>/dev/null; then
-  CONTAINER_CMD=podman; succ "Utilisation de podman"
+  CONTAINER_CMD=podman
+  succ "Utilisation de podman"
 else
   case "$PKG_MGR" in
     apt-get) sudo apt-get update -y && sudo apt-get install -y docker.io ;;
@@ -107,7 +130,8 @@ else
     *)        sudo dnf install -y docker ;;
   esac
   sudo systemctl enable --now docker || err "Impossible de démarrer Docker"
-  CONTAINER_CMD=docker; succ "Utilisation de Docker"
+  CONTAINER_CMD=docker
+  succ "Utilisation de Docker"
 fi
 
 ### —───────────────────────────────────
@@ -128,7 +152,6 @@ succ "Cockpit lancé via \`$CONTAINER_CMD\` sur le port $LISTEN_PORT"
 ### —───────────────────────────────────
 ### 6) Configuration du host distant
 ### —───────────────────────────────────
-DATA_HOST="10.42.0.4"
 DATA_USER="ec2-user"
 SSH_KEY="/home/ec2-user/.ssh/id_rsa"
 CFG="/etc/cockpit/machines.d/data-server.json"
