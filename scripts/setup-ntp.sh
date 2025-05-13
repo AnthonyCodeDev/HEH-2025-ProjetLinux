@@ -1,92 +1,113 @@
-#!/usr/bin/env bash
-# setup_ntp.sh — Installation et configuration sécurisée d'un serveur NTP (Chrony)
-# Usage : sudo ./setup_ntp.sh -c <NETWORK_CIDR>
-set -euo pipefail
-IFS=$'\n\t'
+#!/bin/bash
 
-# === Variables ===
-NETWORK_CIDR=""       # CIDR autorisé pour la synchronisation NTP
-CHRONY_CONF="/etc/chrony.conf"
-BACKUP_SUFFIX=".orig.$(date +%Y%m%d%H%M%S)"
-AWS_NTP="169.254.169.123"  # AWS Time Sync Service
+# ─── COULEURS ──────────────────────────────────────────────────
+RED="\e[31m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+CYAN="\e[36m"
+RESET="\e[0m"
+BOLD="\e[1m"
 
-# === Fonctions ===
-usage() {
-  cat <<EOF
-Usage: sudo $0 -c <NETWORK_CIDR>
-  -c  CIDR réseau autorisé pour la synchronisation NTP
-EOF
-  exit 1
+# ─── FONCTION POUR AFFICHAGE ───────────────────────────────
+print_info() {
+    echo -e "${CYAN}[i]${RESET} $1"
 }
-require_root() { [[ $EUID -eq 0 ]] || { echo "ERREUR : exécutez en root." >&2; exit 1; } }
 
-# === Arguments ===
-while getopts "c:" opt; do
-  case "$opt" in
-    c) NETWORK_CIDR=$OPTARG ;; 
-    *) usage ;; 
-  esac
-done
-[[ -n "$NETWORK_CIDR" ]] || usage
-require_root
+print_ok() {
+    echo -e "${GREEN}[\u2713]${RESET} $1"
+}
 
-# === 1. SELinux: enforcing et port NTP ===
-if command -v setenforce &>/dev/null; then
-  sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config || true
-  setenforce 1 || true
+print_warn() {
+    echo -e "${YELLOW}[!]${RESET} $1"
+}
+
+print_error() {
+    echo -e "${RED}[\u2717]${RESET} $1"
+}
+
+# ─── CONFIGURATION FUSEAU HORAIRE ───────────────────
+print_info "Configuration du fuseau horaire en UTC+2..."
+TIMEZONE="Europe/Brussels"
+
+sudo timedatectl set-timezone $TIMEZONE && \
+print_ok "Fuseau horaire défini sur : $(timedatectl | grep 'Time zone' | awk '{print $3, $4}')" || \
+print_error "Erreur lors de la définition du fuseau horaire."
+
+# ─── INSTALLATION DE CHRONY ───────────────────
+if ! command -v chronyd &> /dev/null; then
+    print_info "Installation de chrony..."
+    if [ -f /etc/redhat-release ]; then
+        sudo dnf install -y chrony
+    elif [ -f /etc/debian_version ]; then
+        sudo apt update && sudo apt install -y chrony
+    else
+        print_error "Distribution non supportée automatiquement. Installe manuellement chrony."
+        exit 1
+    fi
+    print_ok "Chrony installé."
+else
+    print_ok "Chrony est déjà installé."
 fi
-command -v semanage &>/dev/null || dnf install -y policycoreutils-python-utils
-semanage port -a -t ntp_port_t -p udp 123 2>/dev/null || true
 
-# === 2. Installer Chrony ===
-dnf install -y chrony
+# ─── SAUVEGARDE ET CONFIGURATION ─────────────────
+print_info "Sauvegarde de l'ancienne configuration..."
+sudo cp /etc/chrony.conf /etc/chrony.conf.backup && \
+print_ok "Fichier chrony.conf sauvegardé."
 
-# === 3. Sauvegarde et configuration de Chrony ===
-if [[ ! -e "${CHRONY_CONF}${BACKUP_SUFFIX}" ]]; then
-  cp -p "$CHRONY_CONF" "${CHRONY_CONF}${BACKUP_SUFFIX}"
-fi
-cat > "$CHRONY_CONF" <<EOF
-# Configuration NTP générée par setup_ntp.sh
+print_info "Écriture de la nouvelle configuration..."
+sudo bash -c 'cat > /etc/chrony.conf' <<EOF
+server time.google.com iburst
+server time1.facebook.com iburst
 
-# Sources externes fiables
-server ${AWS_NTP} prefer iburst
-server 0.pool.ntp.org iburst
-server 1.pool.ntp.org iburst
+allow 10.0.0.0/8
+allow 192.168.0.0/16
+allow 10.42.0.0/16
 
-# Autorisation du réseau local
-allow ${NETWORK_CIDR}
-
-# Fallback local si aucune source externe accessible
-local stratum 10
+bindaddress 0.0.0.0
+cmdport 0
 
 driftfile /var/lib/chrony/drift
-rtcsync
+log tracking measurements statistics
 EOF
-chmod 600 "$CHRONY_CONF"
-chown root:root "$CHRONY_CONF"
+print_ok "Configuration de chrony écrite."
 
-# Restaurer le contexte SELinux du fichier de config
-command -v restorecon &>/dev/null && restorecon -v "$CHRONY_CONF" || true
+# ─── FIREWALL (UDP 123) ────────────────────────────
+print_info "Ouverture du port 123/udp dans firewalld (zone docker)..."
+sudo firewall-cmd --zone=docker --add-port=123/udp --permanent && \
+sudo firewall-cmd --reload && \
+print_ok "Port 123/udp ouvert dans firewalld." || \
+print_error "Impossible d'ouvrir le port 123/udp dans firewalld."
 
-# === 4. Pare-feu local ===
-if systemctl is-active --quiet firewalld; then
-  firewall-cmd --permanent --add-service=ntp
-  firewall-cmd --reload
-else
-  iptables -C INPUT -p udp --dport 123 -j ACCEPT 2>/dev/null || \
-    iptables -I INPUT -p udp --dport 123 -j ACCEPT
-  iptables-save > /etc/iptables.rules
-fi
+# ─── DÉMARRAGE DU SERVICE ───────────────────────
+print_info "Activation et redémarrage du service chronyd..."
+sudo systemctl enable chronyd
+sudo systemctl restart chronyd && print_ok "Chronyd démarré."
 
-# === 5. Activer et démarrer Chrony ===
-systemctl enable chronyd
-systemctl restart chronyd
-
-# === 6. Vérification ===
-echo -e "\n=== Sources Chrony ==="
-chronyc sources
-
-echo -e "\n=== Suivi de synchronisation ==="
+# ─── AFFICHAGE DU STATUT ─────────────────────────
+print_info "Statut actuel de la synchronisation :"
 chronyc tracking
 
-echo -e "\nServeur NTP configuré et sécurisé pour le réseau ${NETWORK_CIDR}."
+print_ok "Serveur NTP configuré avec fuseau horaire UTC+2 ($TIMEZONE)."
+
+# ─── ENVOI DU SCRIPT CLIENT VERS LES MACHINES DU RÉSEAU ──────────────
+print_info "Début de l'envoi du script client-ntp.sh aux machines clientes..."
+
+# Liste des IPs ou noms des machines clientes (modifie selon ton réseau)
+CLIENTS=("10.42.0.101" "10.42.0.102" "10.42.0.103")
+
+# Clé SSH et utilisateur pour la connexion sans mot de passe
+KEY_PATH="test.pem"
+SSH_USER="ec2-user"
+
+# Chemin vers le script client local
+SCRIPT_CLIENT="./client-ntp.sh"
+
+for IP in "${CLIENTS[@]}"; do
+    print_info "Envoi à $IP..."
+    scp -i "$KEY_PATH" "$SCRIPT_CLIENT" "${SSH_USER}@${IP}:/home/${SSH_USER}/client-ntp.sh" && \
+    ssh -i "$KEY_PATH" "${SSH_USER}@${IP}" "chmod +x /home/${SSH_USER}/client-ntp.sh && sudo /home/${SSH_USER}/client-ntp.sh" && \
+    print_ok "Script déployé et exécuté sur $IP." || \
+    print_error "Échec du déploiement ou de l'exécution sur $IP."
+done
+
+print_ok "Tous les clients ont reçu le script NTP."
