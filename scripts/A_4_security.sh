@@ -185,13 +185,42 @@ if [ ! -f /var/lib/aide/aide.db.gz ]; then
 else
   succ "Base AIDE déjà présente"
 fi
-if ! crontab -u root -l 2>/dev/null | grep -q "aide --check"; then
-  ( crontab -u root -l 2>/dev/null; echo "0 4 * * * aide --check --log=/var/log/aide/aide.log" ) \
-    | crontab -u root -
-  succ "Cron AIDE ajouté (vérif quotidienne à 04h)"
+### ——————————————————————————
+### 8) Installation de cron et planification de la vérification AIDE
+### ——————————————————————————
+info "→ Vérification et installation de cron (si nécessaire)"
+# Vérification de crontab
+if command -v crontab &>/dev/null; then
+  succ "crontab déjà présent"
 else
-  succ "Cron AIDE déjà configuré"
+  if [[ "$PKG_MGR" =~ ^(yum|dnf)$ ]]; then
+    $PKG_MGR install -y cronie || err "Impossible d’installer cronie"
+    succ "cronie installé"
+  else
+    $PKG_MGR install -y cron || err "Impossible d’installer cron"
+    succ "cron installé"
+  fi
 fi
+
+# Choix du nom du service en fonction du gestionnaire de paquets
+if [[ "$PKG_MGR" =~ ^(yum|dnf)$ ]]; then
+  CRON_SVC="crond.service"
+else
+  CRON_SVC="cron.service"
+fi
+
+info "→ Activation et démarrage de ${CRON_SVC}"
+systemctl enable --now "${CRON_SVC}" \
+  && succ "${CRON_SVC} activé et démarré" \
+  || err "Impossible d'activer ou démarrer ${CRON_SVC}"
+
+# Ajout de la tâche cron pour la vérification AIDE quotidienne à 3h
+CRON_JOB="0 3 * * * /usr/bin/aide --check >> /var/log/aide-check.log 2>&1"
+# On filtre l’ancienne ligne puis on ajoute la nouvelle
+( crontab -l 2>/dev/null | grep -Fv "/usr/bin/aide --check" ; echo "${CRON_JOB}" ) | crontab - \
+  && succ "Tâche cron AIDE planifiée : ${CRON_JOB}" \
+  || err "Échec de l'ajout de la tâche cron AIDE"
+
 
 ### ——————————————————————————
 ### Fin
