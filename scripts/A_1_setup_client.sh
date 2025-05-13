@@ -113,6 +113,8 @@ sudo systemctl enable --now firewalld && succ "Service firewalld activé"
 ### 4) Ouverture des ports FTP dans le firewall (firewalld)
 info "Ouverture des ports FTP 21 et 40000-40100 dans firewalld"
 sudo firewall-cmd --add-port=21/tcp --permanent && succ "Port 21/tcp ouvert"
+sudo sudo firewall-cmd --permanent --add-service=http && succ "Service http ouvert"
+sudo firewall-cmd --permanent --add-service=https && sudo firewall-cmd --reload
 sudo firewall-cmd --add-port=40000-40100/tcp --permanent && succ "Plage 40000-40100/tcp ouverte"
 # → Ajout du service Samba (SMB)
 info "Ouverture du service Samba (SMB) dans firewalld"
