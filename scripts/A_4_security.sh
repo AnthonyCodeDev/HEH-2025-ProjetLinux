@@ -102,7 +102,7 @@ else
 fi
 
 ### ——————————————————————————
-### 5) Installation et configuration de ClamAV
+### 5) Installation et configuration de ClamAV (installé mais service non démarré)
 ### ——————————————————————————
 info "→ Mise à jour de tous les paquets"
 $PKG_MGR update -y
@@ -110,8 +110,7 @@ $PKG_MGR update -y
 info "→ Installation de ClamAV et composants"
 $PKG_MGR install -y clamav clamav-update clamav-scanner-systemd || err "Échec installation ClamAV"
 
-# Génération automatique de /etc/clamd.d/scan.conf
-info "→ Création du fichier de configuration clamd@scan"
+info "→ Génération de /etc/clamd.d/scan.conf"
 cat > /etc/clamd.d/scan.conf <<EOF
 # clamd@scan instance configuration
 LogFile /var/log/clamav/clamd.scan.log
@@ -125,19 +124,14 @@ LogVerbose yes
 EOF
 succ "/etc/clamd.d/scan.conf généré"
 
-# ——————————————————————————
-# Création du groupe/utilisateur clamd s’ils n’existent pas
-# ——————————————————————————
+info "→ Création du groupe/utilisateur clamd si manquant"
 if ! getent group clamd >/dev/null; then
-  info "Création du groupe clamd…"
   groupadd --system clamd || err "Impossible de créer le groupe clamd"
   succ "Groupe clamd créé"
 else
   succ "Groupe clamd déjà présent"
 fi
-
 if ! id -u clamd >/dev/null 2>&1; then
-  info "Création de l’utilisateur clamd…"
   useradd --system --no-create-home --shell /sbin/nologin --gid clamd clamd \
     || err "Impossible de créer l’utilisateur clamd"
   succ "Utilisateur clamd créé"
@@ -145,27 +139,20 @@ else
   succ "Utilisateur clamd déjà présent"
 fi
 
-# Préparation des dossiers nécessaires et réglage des permissions
+info "→ Préparation des dossiers et permissions"
 mkdir -p /var/run/clamd.scan /var/log/clamav
-chown -R clamd:clamd /var/run/clamd.scan /var/log/clamav || err "Échec chown sur clamd:clamd"
-succ "Répertoires /var/run/clamd.scan et /var/log/clamav prêts"
+chown -R clamd:clamd /var/run/clamd.scan /var/log/clamav || err "Échec chown clamd:clamd"
+succ "Répertoires prêts (/var/run/clamd.scan, /var/log/clamav)"
 
-info "→ Mise à jour de la base de signatures"
+info "→ Mise à jour des signatures"
 freshclam || err "freshclam a échoué"
+succ "Signatures ClamAV à jour"
 
-info "→ Recharger systemd"
+info "→ Systemd rechargé"
 systemctl daemon-reload
 
-info "→ Activation et démarrage de clamd@scan"
-systemctl enable --now clamd@scan || err "Impossible d’activer clamd@scan"
-
-info "→ Exécution d’un scan complet de /home"
-clamscan -r /home --log=/var/log/clamav/home-scan.log || err "Scan de /home échoué"
-
-info "→ Activation du timer clamd@scan pour scan quotidien"
-systemctl enable --now clamd@scan.timer || err "Impossible d’activer clamd@scan.timer"
-
-succ "ClamAV installé et configuré (scan initial de /home, timer actif)"
+# Note : ClamAV installé et configuré, mais les commandes de démarrage/enable sont volontairement omises
+succ "ClamAV installé et configuré (service non activé)"
 
 ### ——————————————————————————
 ### 6) Fail2Ban
@@ -192,16 +179,15 @@ systemctl enable --now fail2ban && succ "fail2ban activé"
 ### ——————————————————————————
 install_if_missing aide aide
 if [ ! -f /var/lib/aide/aide.db.gz ]; then
-  info "Initialisation de la base AIDE…"
   aide --init || err "Échec init AIDE"
   mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
   succ "Base AIDE initialisée"
 else
   succ "Base AIDE déjà présente"
 fi
-
 if ! crontab -u root -l 2>/dev/null | grep -q "aide --check"; then
-  ( crontab -u root -l 2>/dev/null; echo "0 4 * * * aide --check --log=/var/log/aide/aide.log" ) | crontab -u root -
+  ( crontab -u root -l 2>/dev/null; echo "0 4 * * * aide --check --log=/var/log/aide/aide.log" ) \
+    | crontab -u root -
   succ "Cron AIDE ajouté (vérif quotidienne à 04h)"
 else
   succ "Cron AIDE déjà configuré"
@@ -210,4 +196,4 @@ fi
 ### ——————————————————————————
 ### Fin
 ### ——————————————————————————
-succ "Sécurisation terminée : pare-feu, SSH, SELinux, ClamAV, Fail2Ban, AIDE."
+succ "Sécurisation terminée : pare-feu, SSH, SELinux, ClamAV (non activé), Fail2Ban, AIDE."
