@@ -1,150 +1,149 @@
 #!/usr/bin/env bash
 # ----------------------------------------------------------------------------
-# A_19_setup_uptimekuma.sh
-# Installe et configure Uptime-Kuma en container Docker,
-# puis ajoute des moniteurs définis dans un fichier de configuration.
-# Usage: sudo ./A_19_setup_uptimekuma.sh monitors.conf
-# monitors.conf format (champ séparés par espaces):
-#   <name> <type> <address> <interval_sec>
-# Ex: web01 HTTP https://example.com 60
-#     db01 TCP 192.168.0.10:3306 30
-#     gw01 PING 192.168.0.1 20
+# setup_uptimekuma.sh
+# Installe Docker, démarre Uptime-Kuma (web) + wrapper REST,
+# crée des moniteurs et une page de statut avec tous les moniteurs.
+# Usage: sudo ./setup_uptimekuma.sh monitors.conf
 # ----------------------------------------------------------------------------
 set -euo pipefail
 IFS=$' \t\n'
 
-CONFIG_FILE="${1:-}"
-# Expansion du tilde (~)
-if [[ "$CONFIG_FILE" == ~* ]]; then
-  CONFIG_FILE="${CONFIG_FILE/#\~/$HOME}"
-fi
-
-# Variables principales
-UPK_CONTAINER="uptime-kuma"
-UPK_PORT=3001
-ADMIN_USER="admin"
-ADMIN_PASS="admin123"
-BASE_URL="http://localhost:${UPK_PORT}"
-SETUP_ENDPOINT="/api/setup/admin"
-LOGIN_ENDPOINT="/api/login"
-MONITOR_ENDPOINT="/api/monitor"
-
-# 1. Vérifier l'exécution en root
-if [[ $(id -u) -ne 0 ]]; then
-  echo "[ERROR] Ce script doit être exécuté en root." >&2
+CFG="${1:-}"
+[[ -z "$CFG" || ! -r "$CFG" ]] && {
+  echo "Usage: sudo $0 monitors.conf" >&2
   exit 1
-fi
+}
 
-# 2. Vérifier dépendances
-for cmd in curl jq docker; do
-  if ! command -v "$cmd" >/dev/null; then
-    echo "[ERROR] '$cmd' introuvable. Installez-le et relancez." >&2
-    exit 1
-  fi
+# 1. Dépendances
+for cmd in docker curl jq; do
+  command -v "$cmd" >/dev/null || { echo "[ERROR] '$cmd' manquant"; exit 1; }
 done
 
-# 3. Vérifier le fichier de configuration
-if [[ -z "$CONFIG_FILE" ]]; then
-  echo "Usage: $(basename "$0") monitors.conf" >&2
+# 2. Variables
+UI_CN=uptime-kuma
+API_CN=uptime-kuma-api
+ADMIN_USER=admin
+ADMIN_PASS=admin123
+WEB_PORT=3001
+API_PORT=8000
+UI_IMG=louislam/uptime-kuma:latest
+API_IMG=medaziz11/uptimekuma_restapi:latest
+API_BASE="http://localhost:${API_PORT}"
+
+# 3. (Re)créer l’UI
+docker rm -f "$UI_CN" >/dev/null 2>&1 || true
+docker run -d --name "$UI_CN" \
+  -e ADMIN_USER="$ADMIN_USER" \
+  -e ADMIN_PASSWORD="$ADMIN_PASS" \
+  -p "$WEB_PORT":3001 \
+  -v uptime-kuma-data:/app/data \
+  "$UI_IMG"
+
+# 4. (Re)créer le wrapper REST
+docker rm -f "$API_CN" >/dev/null 2>&1 || true
+docker run -d --name "$API_CN" \
+  --link "$UI_CN":uptime_kuma \
+  -e KUMA_SERVER="http://uptime_kuma:3001" \
+  -e KUMA_USERNAME="$ADMIN_USER" \
+  -e KUMA_PASSWORD="$ADMIN_PASS" \
+  -e ADMIN_PASSWORD="$ADMIN_PASS" \
+  -e SECRET_KEY="$ADMIN_PASS" \
+  -e KUMA_LOGIN_PATH="/login/access-token" \
+  -p "$API_PORT":8000 \
+  "$API_IMG"
+
+# 5. Attendre le wrapper REST
+echo "[INFO] Attente du wrapper REST…"
+until curl -s -o /dev/null -w '%{http_code}' "$API_BASE/monitors" | grep -E -q '^[24]'; do
+  sleep 2
+done
+echo "[INFO] Wrapper REST prêt."
+
+# 6. Authentification REST
+echo "[INFO] Récupération du token REST…"
+RESP=$(curl -s -X POST "$API_BASE/login/access-token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "username=$ADMIN_USER" \
+  --data-urlencode "password=$ADMIN_PASS")
+TOKEN=$(echo "$RESP" | jq -r '.access_token // empty')
+if [[ -z "$TOKEN" ]]; then
+  echo "[ERROR] Échec login wrapper. Réponse :" >&2
+  echo "$RESP" >&2
   exit 1
 fi
-if [[ ! -r "$CONFIG_FILE" ]]; then
-  echo "[ERROR] Fichier '$CONFIG_FILE' introuvable ou non lisible." >&2
-  exit 1
-fi
-
-# 4. Lancer Uptime-Kuma si nécessaire
-if ! docker ps --format '{{.Names}}' | grep -qw "$UPK_CONTAINER"; then
-  echo "[INFO] Démarrage du container Uptime-Kuma avec réglage initial d'administration..."
-  docker run -d --name "$UPK_CONTAINER" \
-    -e "ADMIN_USER=${ADMIN_USER}" \
-    -e "ADMIN_PASSWORD=${ADMIN_PASS}" \
-    -p ${UPK_PORT}:3001 \
-    -v uptime-kuma-data:/app/data \
-    louislam/uptime-kuma:latest
-
-  # Attente du démarrage : test toutes les 5s jusqu'à HTTP 200 sur /api/user
-  echo "[INFO] Attente du démarrage du service Uptime-Kuma..."
-  until curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/api/user" | grep -q '^2'; do
-    sleep 5
-  done
-  echo "[INFO] Service Uptime-Kuma démarré."
-else
-  echo "[INFO] Container $UPK_CONTAINER déjà en cours."
-fi
-
-# 5. Création de l'admin initial si nécessaire
-HTTP_USER=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/api/user")
-if [[ "$HTTP_USER" -eq 404 ]]; then
-  echo "[INFO] Pas d'utilisateur admin trouvé, création via $SETUP_ENDPOINT"
-  curl -s -X POST "$BASE_URL$SETUP_ENDPOINT" \
-       -H "Content-Type: application/json" \
-       -d '{"user":"'"$ADMIN_USER"'","password":"'"$ADMIN_PASS"'"}' \
-    || { echo "[ERROR] Échec de la création admin initial" >&2; exit 1; }
-  echo "[INFO] Admin initial créé."
-fi
-
-# 6. Authentification et récupération du token
-echo "[INFO] Obtention du token API…"
-LOGIN_RESP=$(curl -s -X POST "$BASE_URL$LOGIN_ENDPOINT" \
-  -H "Content-Type: application/json" \
-  -d '{"username":"'"$ADMIN_USER"'","password":"'"$ADMIN_PASS"'"}')
-
-if ! echo "$LOGIN_RESP" | jq -e . >/dev/null 2>&1; then
-  echo "[ERROR] Réponse API invalide: $LOGIN_RESP" >&2
-  exit 1
-fi
-
-TOKEN=$(echo "$LOGIN_RESP" | jq -r .token)
-if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
-  echo "[ERROR] Échec authentification API. Réponse: $LOGIN_RESP" >&2
-  exit 1
-fi
-echo "[INFO] Authentification réussie, token obtenu."
+echo "[INFO] Token REST obtenu."
 
 # 7. Création des moniteurs
-while read -r name type address interval; do
-  [[ "$name" =~ ^# ]]   && continue
-  [[ -z "$name" ]]      && continue
-
-  echo "[INFO] Création moniteur '$name' ($type $address)..."
+echo "[INFO] Création des moniteurs…"
+while read -r name type addr interval; do
+  [[ "$name" == \#* || -z "$name" ]] && continue
   case "$type" in
     HTTP)
-      payload=$(jq -n \
-        --arg name "$name" \
-        --arg url  "$address" \
-        --argjson interval "$interval" \
-        '{"name":$name, "type":"http", "url":$url, "interval":$interval}')
-      ;;
+      payload=$(jq -n --arg n "$name" --arg u "$addr" --argjson i "$interval" \
+        '{name:$n,type:"http",url:$u,interval:$i}') ;;
     TCP)
-      host=${address%%:*}
-      port=${address##*:}
-      payload=$(jq -n \
-        --arg name "$name" \
-        --arg host "$host" \
-        --argjson port "$port" \
-        --argjson interval "$interval" \
-        '{"name":$name, "type":"tcp", "hostname":$host, "port":$port, "interval":$interval}')
-      ;;
+      host=${addr%%:*}; port=${addr##*:}
+      payload=$(jq -n --arg n "$name" --arg h "$host" --argjson p "$port" --argjson i "$interval" \
+        '{name:$n,type:"tcp",hostname:$h,port:$p,interval:$i}') ;;
     PING)
-      payload=$(jq -n \
-        --arg name "$name" \
-        --arg addr "$address" \
-        --argjson interval "$interval" \
-        '{"name":$name, "type":"ping", "hostname":$addr, "interval":$interval}')
-      ;;
+      payload=$(jq -n --arg n "$name" --arg h "$addr" --argjson i "$interval" \
+        '{name:$n,type:"ping",hostname:$h,interval:$i}') ;;
     *)
-      echo "[WARNING] Type inconnu: $type. Ignoré." >&2
-      continue
-      ;;
+      echo "[WARN] Type '$type' inconnu. Ignoré." >&2
+      continue ;;
   esac
 
-  curl -s -X POST "$BASE_URL$MONITOR_ENDPOINT" \
-       -H "Content-Type: application/json" \
-       -H "Authorization: Bearer $TOKEN" \
-       -d "$payload" \
-    && echo "[OK] Moniteur '$name' créé." \
-    || echo "[ERROR] Échec création '$name'."
-done < "$CONFIG_FILE"
+  RESP_TMP=$(mktemp)
+  code=$(curl -s -w '%{http_code}' -o "$RESP_TMP" \
+    -X POST "$API_BASE/monitors" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
+    -d "$payload")
+  if [[ "$code" =~ ^(200|201|422)$ ]]; then
+    echo "[OK] Moniteur '$name' traité (HTTP $code)."
+  else
+    echo "[ERROR] Échec création '$name' (HTTP $code). Réponse :" >&2
+    cat "$RESP_TMP" >&2
+  fi
+  rm -f "$RESP_TMP"
+done < "$CFG"
 
-echo "[OK] Configuration Uptime-Kuma terminée."
+# 8. Création d’une page de statut affichant tous les moniteurs
+echo "[INFO] Création de la page de statut..."
+
+# Récupérer la liste des IDs
+RAW=$(curl -s -H "Authorization: Bearer $TOKEN" "$API_BASE/monitors")
+MONITOR_IDS=$(echo "$RAW" | jq 'if (type=="object" and .monitors) then .monitors else . end | map(.id)')
+
+# Construire le payload selon l’API (publicGroupList)
+STATUSPAGE_PAYLOAD=$(jq -n \
+  --arg name "Statut général" \
+  --arg slug "statut-general" \
+  --argjson mons "$MONITOR_IDS" \
+  '{
+     name: $name,
+     slug: $slug,
+     publicGroupList: [
+       {
+         name: $name,
+         weight: 0,
+         monitorList: $mons
+       }
+     ]
+   }')
+
+code=$(curl -s -w '%{http_code}' -o /dev/null \
+  -X POST "$API_BASE/statuspages" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "$STATUSPAGE_PAYLOAD")
+
+if [[ "$code" -eq 201 ]]; then
+  echo "[OK] Page de statut 'Statut général' créée."
+elif [[ "$code" -eq 422 ]]; then
+  echo "[WARN] La page de statut existe peut-être déjà."
+else
+  echo "[ERROR] Échec création page de statut (HTTP $code)."
+fi
+
+echo "[OK] Script terminé."
