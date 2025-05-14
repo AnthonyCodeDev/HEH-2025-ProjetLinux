@@ -102,18 +102,21 @@ fi
 ### —───────────────────────────────────
 ### 3) Activation et démarrage du service cron
 ### —───────────────────────────────────
-if systemctl status crond.service &>/dev/null; then
-  CRON_SVC="crond.service"
-elif systemctl status cronie.service &>/dev/null; then
-  CRON_SVC="cronie.service"
-else
-  err "Service cron non trouvé (ni crond.service ni cronie.service)"
-fi
+info "→ Activation et démarrage du service cron"
 
-info "→ Activation et démarrage de ${CRON_SVC}"
-systemctl enable --now "$CRON_SVC" \
-  && succ "${CRON_SVC} activé et démarré" \
-  || err "Impossible d'activer ou démarrer ${CRON_SVC}"
+# Recharger les unités systemd au cas où
+systemctl daemon-reload
+
+# On essaie d'activer/démarrer crond, cron ou cronie
+if systemctl enable --now crond.service &>/dev/null; then
+  succ "Service crond.service activé et démarré"
+elif systemctl enable --now cron.service &>/dev/null; then
+  succ "Service cron.service activé et démarré"
+elif systemctl enable --now cronie.service &>/dev/null; then
+  succ "Service cronie.service activé et démarré"
+else
+  err "Impossible d’activer ou de démarrer un service cron (crond.service, cron.service ou cronie.service introuvable)."
+fi
 
 ### —───────────────────────────────────
 ### 4) Préparation du fichier de log
