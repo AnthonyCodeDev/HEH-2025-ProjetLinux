@@ -1,8 +1,11 @@
 # HEH-2025 Projet Linux
 
 **Auteurs :** Anthony & Guillaume
+
 **Encadrement :** Mr Malaise, Mr Dambrin, Mr Roland
+
 **Année académique :** 2024–2025
+
 **UE :** Projets Linux (Bachelier en informatique, spécialité Télécommunications et réseaux, Bloc 2)
 
 ---
