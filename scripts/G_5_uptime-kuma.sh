@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # ----------------------------------------------------------------------------
 # setup_uptimekuma.sh
-# Script amélioré sans argument de fichier de configuration, utilisation de 5 paramètres obligatoires.
+# Script amélioré sans paramètres -u / -p. Admin hardcodé en début de script.
 # Usage: sudo ./setup_uptimekuma.sh -data <IP> -certificat <IP> -monitoring <IP> -time <IP> -backup <IP>
 # ----------------------------------------------------------------------------
 set -euo pipefail
 IFS=$' \t\n'
-# --- 1. Parsing des arguments obligatoires
-if [[ $# -lt 14 ]]; then
-  echo "[ERROR] Usage: sudo $0 -data <IP> -certificat <IP> -monitoring <IP> -time <IP> -backup <IP> -u <user> -p <pass>" >&2
+
+# --- 1. Variables d'administration hardcodées
+ADMIN_USER="admin"
+ADMIN_PASS="admin123"
+
+# --- 2. Parsing des arguments obligatoires (sans user/pass)
+if [[ $# -lt 10 ]]; then
+  echo "[ERROR] Usage: sudo $0 -data <IP> -certificat <IP> -monitoring <IP> -time <IP> -backup <IP>" >&2
   exit 1
 fi
 
@@ -24,28 +29,22 @@ while [[ $# -gt 0 ]]; do
       TIME_IP="$2"; shift 2;;
     -backup)
       BACKUP_IP="$2"; shift 2;;
-    -u)
-      ADMIN_USER="$2"; shift 2;;
-    -p)
-      ADMIN_PASS="$2"; shift 2;;
     *)
       echo "[ERROR] Paramètre inconnu: $1" >&2; exit 1;;
   esac
-done
+ done
 
 # Vérification de la présence de tous les paramètres
-for var in DATA_IP CERT_IP MON_IP TIME_IP BACKUP_IP ADMIN_USER ADMIN_PASS; do
+for var in DATA_IP CERT_IP MON_IP TIME_IP BACKUP_IP; do
   if [[ -z "${!var:-}" ]]; then
     echo "[ERROR] Le paramètre ${var} est requis." >&2
     exit 1
   fi
 done
 
-# --- 2. Variables par défaut (si non fournies via -u / -p)
+# --- 3. Variables par défaut
 UI_CN=uptime-kuma
 API_CN=uptime-kuma-api
-: "${ADMIN_USER:=admin}"
-: "${ADMIN_PASS:=admin123}"
 WEB_PORT=3001
 API_PORT=8000
 UI_IMG=louislam/uptime-kuma:latest
@@ -53,7 +52,7 @@ API_IMG=medaziz11/uptimekuma_restapi:latest
 UI_BASE="http://localhost:${WEB_PORT}"
 API_BASE="http://localhost:${API_PORT}"
 
-# --- 3. Vérif. et installation pip3 + firefox + autres dépendances
+# --- 4. Vérif. et installation pip3 + firefox + autres dépendances
 if ! command -v pip3 >/dev/null; then
   echo "[DEBUG] pip3 non trouvé, installation python3-pip..."
   dnf install -y python3-pip >/dev/null 2>&1
@@ -67,13 +66,13 @@ for cmd in curl jq docker dnf python3 pip3 firefox; do
       exit 1
     }
   fi
-done
+ done
 
-# --- 4. Installation Python packages
+# --- 5. Installation Python packages
 echo "[DEBUG] pip3 install selenium + geckodriver-autoinstaller..."
 pip3 install --quiet selenium geckodriver-autoinstaller
 
-# --- 5. Firewall & iptables
+# --- 6. Firewall & iptables
 echo "[INFO] Configuration firewalld…"
 dnf install -y firewalld >/dev/null 2>&1 || true
 systemctl enable --now firewalld >/dev/null 2>&1
@@ -89,20 +88,21 @@ if ! iptables -t nat -L DOCKER >/dev/null 2>&1; then
   systemctl restart docker
 fi
 
-# --- 6. Pull images & nettoyage
+# --- 7. Pull images & nettoyage
 echo "[INFO] Pull des images Docker…"
 for IMG in "$UI_IMG" "$API_IMG"; do
   docker rmi -f "$IMG" >/dev/null 2>&1 || true
   docker pull "$IMG"
 done
+
 docker rm -f "$UI_CN" "$API_CN" >/dev/null 2>&1 || true
 docker volume rm -f uptime-kuma-data >/dev/null 2>&1 || true
 
-# --- 7. Lancement UI
+# --- 8. Lancement UI
 echo "[INFO] Démarrage UI Uptime-Kuma…"
 docker run -d --name "$UI_CN" -p "${WEB_PORT}":3001 -v uptime-kuma-data:/app/data "$UI_IMG"
 
-# --- 8. Création auto admin avec debug
+# --- 9. Création auto admin avec debug
 echo "[INFO] Création automatique de l'utilisateur admin…"
 echo "[DEBUG] Attente de la page de setup sur ${UI_BASE}…"
 sleep 1
@@ -181,7 +181,7 @@ PYCODE
 
 echo "[OK] Utilisateur admin : ${ADMIN_USER}/${ADMIN_PASS}"
 
-# --- 9. Lancement wrapper REST et création des moniteurs
+# --- 10. Lancement wrapper REST et création des moniteurs
 echo "[INFO] Démarrage wrapper REST…"
 docker run -d --name "$API_CN" --link "$UI_CN":uptime_kuma \
   -e KUMA_SERVER="http://uptime_kuma:3001" -e KUMA_USERNAME="$ADMIN_USER" \
