@@ -199,6 +199,11 @@ run_remote "${BACKUP_IP}" "
 scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
     "${LOCAL_CERT_DIR}/"*.pem \
     "${SSH_USER}@${BACKUP_IP}:/home/ec2-user/HEH-2025-ProjetLinux/scripts/"
-run_remote "${BACKUP_IP}" "sudo cp ~/HEH-2025-ProjetLinux/scripts/A_3_backup_server.sh /usr/local/bin/backup_script.sh && sudo bash /usr/local/bin/backup_script.sh"
+
+run_remote "${BACKUP_IP}" "
+  sudo cp ~/HEH-2025-ProjetLinux/scripts/A_3_backup_server.sh /usr/local/bin/backup_script.sh
+  sudo chmod +x /usr/local/bin/backup_script.sh
+  sudo /usr/local/bin/backup_script.sh
+"
 
 echo ">>> Tous les serveurs sont configurés ✅"
