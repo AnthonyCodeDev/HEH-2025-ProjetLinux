@@ -53,4 +53,3 @@ Ce fichier README vous guide pour lancer correctement le script PowerShell qui c
 
 ---
 
-Pour toute question ou problème, assurez-vous que votre adaptateur OpenVPN est installé et en état **Up** dans la liste des adaptateurs réseau (\`Get-NetAd
