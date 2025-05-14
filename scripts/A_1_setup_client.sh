@@ -71,6 +71,13 @@ succ "Domaine    : $DOMAIN"
 succ "Password clients : $PASSWORD"
 succ "Clients à provisionner : ${USERS[*]}"
 
+SSL_CERT="/etc/ssl/certs/wildcard.${DOMAIN}.crt.pem"
+SSL_KEY="/etc/ssl/private/wildcard.${DOMAIN}.key.pem"
+
+if [[ ! -f "$SSL_CERT" || ! -f "$SSL_KEY" ]]; then
+  err "Certificat wildcard SSL non trouvé. Génère le certificat SSL (*.${DOMAIN}) avant d'exécuter ce script."
+fi
+
 ### 2) Détection pkg manager & SQL client
 PKG_MGR=""; CLIENT_PKG=""
 . /etc/os-release 2>/dev/null || true
@@ -279,7 +286,19 @@ PROFILE
 server {
   listen 80;
   server_name ${USER_NAME}.${DOMAIN};
-  root $WEB_DIR;
+  return 301 https://\$host\$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  server_name ${USER_NAME}.${DOMAIN};
+
+  ssl_certificate      $SSL_CERT;
+  ssl_certificate_key  $SSL_KEY;
+  ssl_protocols        TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers on;
+
+  root  $WEB_DIR;
   index index.html index.htm;
   location / { try_files \$uri \$uri/ =404; }
 }
