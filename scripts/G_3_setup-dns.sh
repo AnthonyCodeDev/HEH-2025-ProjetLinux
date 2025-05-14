@@ -39,20 +39,6 @@ if [ -z "$PRIVATE_IP" ]; then
   exit 1
 fi
 
-# --- début bloc interactif ---
-# proposer la confirmation ou la saisie manuelle
-read -p "L'adresse IP détectée est ${PRIVATE_IP}. Confirmez-vous ? [O/n] " REPLY
-REPLY=${REPLY:-O}
-if [[ ! "$REPLY" =~ ^[Oo] ]]; then
-  read -p "Veuillez saisir manuellement l'adresse IPv4 à utiliser : " PRIVATE_IP
-  # on peut retester rapidement la syntaxe si besoin :
-  if ! [[ $PRIVATE_IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-    error "Format d'adresse invalide : ${PRIVATE_IP}"
-    exit 1
-  fi
-fi
-# --- fin bloc interactif ---
-
 success "Adresse privée retenue : ${PRIVATE_IP}"
 
 
