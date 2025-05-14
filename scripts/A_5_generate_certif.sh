@@ -171,3 +171,7 @@ Obligatoire car Certificat auto-signé en local :
 -> heh.crt (Windows => certmgr.msc => Autorité de certification racines de confiance => (Clic droit) => Toutes les tâches => Importer):
 "
 sudo cat "$CRT_FILE"
+
+echo "
+N'OUBLIEZ PAS DE METTRE LE CERTIFICAT AUTO-SIGNÉ SUR VOTRE MACHINE WINDOWS !!!!
+"
