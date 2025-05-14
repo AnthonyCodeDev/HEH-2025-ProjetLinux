@@ -22,65 +22,39 @@ success()  { echo -e "${GREEN}[ OK ]${RESET}  $*"; }
 warn()     { echo -e "${YELLOW}[WARN]${RESET} $*"; } 
 error()    { echo -e "${RED}[ERROR]${RESET} $*"; }
 
-usage() {
-  cat <<EOF
-
-Usage: $0 -ip <PRIVATE_IP>
-
-Installe et configure un serveur DNS privé (master + cache + reverse)
-accessible uniquement sur le réseau 10.42.0.0/16.
-
-Options obligatoires :
-  -ip <IP>       Adresse IPv4 du serveur DNS (ex. 10.42.0.238)
-
-EOF
-}
-
 # 0) Vérification des droits
 if [ "$EUID" -ne 0 ]; then
   error "Lancez ce script avec sudo ou en root."
   exit 1
 fi
 
-# 1) Parsing des arguments
-PRIVATE_IP=""
-while [ $# -gt 0 ]; do
-  case "$1" in
-    -ip)
-      if [ -n "${2-}" ] && [[ ! "$2" =~ ^- ]]; then
-        PRIVATE_IP="$2"
-        shift 2
-      else
-        error "Option -ip requiert une adresse IPv4 en argument."
-        usage
-        exit 1
-      fi
-      ;;
-    -*)
-      error "Option inconnue : $1"
-      usage
-      exit 1
-      ;;
-    *)
-      error "Argument inattendu : $1"
-      usage
-      exit 1
-      ;;
-  esac
-done
-
+# 1) Détection automatique de l'adresse IPv4 privée
+PRIVATE_NET="10.42.0.0/16"
+info "Détection de l'adresse IPv4 privée sur le réseau ${PRIVATE_NET}"
+PRIVATE_IP=$(ip -4 addr show scope global \
+  | grep -oP '(?<=inet\s)(10\.42\.(?:[0-9]{1,3}\.){1}[0-9]{1,3})' \
+  | head -n1)
 if [ -z "$PRIVATE_IP" ]; then
-  error "Adresse IPv4 non fournie."
-  usage
+  error "Impossible de détecter l'adresse IPv4 privée (réseau ${PRIVATE_NET})."
   exit 1
 fi
 
-# 2) Validation de la syntaxe IPv4 basique
-if ! [[ $PRIVATE_IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-  error "Adresse IPv4 invalide : ${PRIVATE_IP}"
-  usage
-  exit 1
+# --- début bloc interactif ---
+# proposer la confirmation ou la saisie manuelle
+read -p "L'adresse IP détectée est ${PRIVATE_IP}. Confirmez-vous ? [O/n] " REPLY
+REPLY=${REPLY:-O}
+if [[ ! "$REPLY" =~ ^[Oo] ]]; then
+  read -p "Veuillez saisir manuellement l'adresse IPv4 à utiliser : " PRIVATE_IP
+  # on peut retester rapidement la syntaxe si besoin :
+  if ! [[ $PRIVATE_IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    error "Format d'adresse invalide : ${PRIVATE_IP}"
+    exit 1
+  fi
 fi
+# --- fin bloc interactif ---
+
+success "Adresse privée retenue : ${PRIVATE_IP}"
+
 
 # 3) Validation de chaque octet (0–255)
 IFS='.' read -r o1 o2 o3 o4 <<< "$PRIVATE_IP"
