@@ -101,92 +101,92 @@ run_remote() {
       "${SSH_USER}@${target_ip}" bash -lc "$*"
 }
 
-# #
-# # 2) SERVEUR DE DATA — NFS/SAMBA
-# #
-# echo ">>> Configuration du serveur DATA (${DATA_IP})"
-# run_remote "${DATA_IP}" "
-#   sudo dnf install -y git &&
-#   git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true &&
-#   cd ~/HEH-2025-ProjetLinux/scripts &&
-#   sudo bash A_0_setup_nfs_samba.sh
-# "
+#
+# 2) SERVEUR DE DATA — NFS/SAMBA
+#
+echo ">>> Configuration du serveur DATA (${DATA_IP})"
+run_remote "${DATA_IP}" "
+  sudo dnf install -y git &&
+  git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true &&
+  cd ~/HEH-2025-ProjetLinux/scripts &&
+  sudo bash A_0_setup_nfs_samba.sh
+"
 
-# #
-# # 3) SERVEUR DE CERTIFICAT — génération des certificats
-# #
-# echo ">>> Configuration du serveur CERTIFICAT (${CERT_IP})"
-# run_remote "${CERT_IP}" "
-#   sudo dnf install -y git &&
-#   git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true &&
-#   cd ~/HEH-2025-ProjetLinux/scripts &&
-#   sudo bash A_5_generate_certif.sh \
-#     -ip ${DATA_IP} \
-# "
+#
+# 3) SERVEUR DE CERTIFICAT — génération des certificats
+#
+echo ">>> Configuration du serveur CERTIFICAT (${CERT_IP})"
+run_remote "${CERT_IP}" "
+  sudo dnf install -y git &&
+  git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true &&
+  cd ~/HEH-2025-ProjetLinux/scripts &&
+  sudo bash A_5_generate_certif.sh \
+    -ip ${DATA_IP} \
+"
 
-# scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
-#     "${SSH_USER}@${CERT_IP}:/etc/ssl/certs/wildcard.heh.lan.crt.pem" \
-#     ./windows.crt
-# # 4) RÉCUPÉRATION DES CERTIFICATS EN LOCAL
-# echo ">>> Récupération du(s) certificat(s) en local"
-# mkdir -p "${LOCAL_CERT_DIR}"
+scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
+    "${SSH_USER}@${CERT_IP}:/etc/ssl/certs/wildcard.heh.lan.crt.pem" \
+    ./windows.crt
+# 4) RÉCUPÉRATION DES CERTIFICATS EN LOCAL
+echo ">>> Récupération du(s) certificat(s) en local"
+mkdir -p "${LOCAL_CERT_DIR}"
 
-# DOMAIN="heh.lan"
+DOMAIN="heh.lan"
 
-# # Récupérer la clé privée via sudo cat (scp ne peut pas accéder à /etc/ssl/private/)
-# ssh -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
-#     "${SSH_USER}@${CERT_IP}" \
-#     "sudo cat /etc/ssl/private/wildcard.${DOMAIN}.key.pem" \
-#     > "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.key.pem"
-# chmod 600 "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.key.pem"
+# Récupérer la clé privée via sudo cat (scp ne peut pas accéder à /etc/ssl/private/)
+ssh -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
+    "${SSH_USER}@${CERT_IP}" \
+    "sudo cat /etc/ssl/private/wildcard.${DOMAIN}.key.pem" \
+    > "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.key.pem"
+chmod 600 "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.key.pem"
 
-# # Récupérer le certificat (généralement lisible sans sudo)
-# scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
-#   "${SSH_USER}@${CERT_IP}:/etc/ssl/certs/wildcard.${DOMAIN}.crt.pem" \
-#   "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.crt.pem"
+# Récupérer le certificat (généralement lisible sans sudo)
+scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
+  "${SSH_USER}@${CERT_IP}:/etc/ssl/certs/wildcard.${DOMAIN}.crt.pem" \
+  "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.crt.pem"
 
-# echo "✅ Clé et certificat récupérés dans : ${LOCAL_CERT_DIR}/"
+echo "✅ Clé et certificat récupérés dans : ${LOCAL_CERT_DIR}/"
 
 
-# #
-# # 5) SERVEUR DE MONITORING — clone + installation + monitoring
-# #
-# echo ">>> Configuration du serveur MONITORING (${MONITORING_IP})"
-# run_remote "${MONITORING_IP}" "
-#   sudo dnf install -y git &&
-#   git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true
-# "
-# scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
-#     "${LOCAL_CERT_DIR}/"*.pem \
-#     "${SSH_USER}@${MONITORING_IP}:/home/ec2-user/HEH-2025-ProjetLinux/scripts/"
-# run_remote "${MONITORING_IP}" "
-#   cd ~/HEH-2025-ProjetLinux/scripts &&
-#   sudo bash A_1_setup_client.sh -u monitoring -p pass &&
-#   sudo bash A_2_monitoring.sh -d ${CERT_IP}
-# "
+#
+# 5) SERVEUR DE MONITORING — clone + installation + monitoring
+#
+echo ">>> Configuration du serveur MONITORING (${MONITORING_IP})"
+run_remote "${MONITORING_IP}" "
+  sudo dnf install -y git &&
+  git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true
+"
+scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
+    "${LOCAL_CERT_DIR}/"*.pem \
+    "${SSH_USER}@${MONITORING_IP}:/home/ec2-user/HEH-2025-ProjetLinux/scripts/"
+run_remote "${MONITORING_IP}" "
+  cd ~/HEH-2025-ProjetLinux/scripts &&
+  sudo bash A_1_setup_client.sh -u monitoring -p pass &&
+  sudo bash A_2_monitoring.sh -d ${CERT_IP}
+"
 
-# #
-# # 6) AJOUT DU CLIENT MONITORING ET BACKUP SUR DATA
-# #
-# echo ">>> Ajout des clients MONITORING & BACKUP sur DATA (${DATA_IP})"
-# run_remote "${DATA_IP}" "
-#   cd ~/HEH-2025-ProjetLinux/scripts &&
-#   sudo bash A_1_setup_client.sh -u monitoring -p pass &&
-#   sudo bash A_1_setup_client.sh -u backup -p pxmiXvkEte808X &&
-#   sudo bash A_2_monitoring.sh -d ${CERT_IP} &&
-#   sudo bash G_3_setup-dns.sh
-# "
+#
+# 6) AJOUT DU CLIENT MONITORING ET BACKUP SUR DATA
+#
+echo ">>> Ajout des clients MONITORING & BACKUP sur DATA (${DATA_IP})"
+run_remote "${DATA_IP}" "
+  cd ~/HEH-2025-ProjetLinux/scripts &&
+  sudo bash A_1_setup_client.sh -u monitoring -p pass &&
+  sudo bash A_1_setup_client.sh -u backup -p pxmiXvkEte808X &&
+  sudo bash A_2_monitoring.sh -d ${CERT_IP} &&
+  sudo bash G_3_setup-dns.sh
+"
 
-# #
-# # 7) SERVEUR DE TEMPS — NTP
-# #
-# echo ">>> Configuration du serveur TEMPS (${TIME_IP})"
-# run_remote "${TIME_IP}" "
-#   sudo dnf install -y git &&
-#   git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true &&
-#   cd ~/HEH-2025-ProjetLinux/scripts &&
-#   sudo bash G_1_setup-ntp.sh ${DATA_IP}
-# "
+#
+# 7) SERVEUR DE TEMPS — NTP
+#
+echo ">>> Configuration du serveur TEMPS (${TIME_IP})"
+run_remote "${TIME_IP}" "
+  sudo dnf install -y git &&
+  git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true &&
+  cd ~/HEH-2025-ProjetLinux/scripts &&
+  sudo bash G_1_setup-ntp.sh ${DATA_IP}
+"
 
 #
 # 8) SERVEUR DE BACKUP — clone + client + backup
