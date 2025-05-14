@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # Usage :
-#   sudo bash setup_client.sh -u user1 [user2 …] -p PASSWORD -d DOMAIN
+#   sudo bash setup_client.sh -u user1 [user2 …] -p PASSWORD
 # Example :
-#   sudo bash setup_client.sh -u guillaume antho -p S3cr3tP@ss -d heh.lan
+#   sudo bash setup_client.sh -u guillaume antho -p S3cr3tP@ss
 
 ### —───────────────────────────────────
 ### Couleurs & helpers
@@ -13,15 +13,14 @@ RED=$'\e[31m'; GREEN=$'\e[32m'; BLUE=$'\e[34m'; RESET=$'\e[0m'
 
 function show_usage {
   cat <<EOF
-Usage : $0 -u user1 [user2 …] -p PASSWORD -d DOMAIN
+Usage : $0 -u user1 [user2 …] -p PASSWORD
 
 Paramètres obligatoires :
   -u   Liste d'un ou plusieurs utilisateurs (séparés par des espaces)
   -p   Mot de passe commun aux utilisateurs
-  -d   Nom de domaine (ex. heh.lan)
 
 Exemple :
-  sudo bash $0 -u guillaume antho -p S3cr3tP@ss -d heh.lan
+  sudo bash $0 -u guillaume antho -p S3cr3tP@ss
 EOF
 }
 
@@ -40,7 +39,7 @@ function info {
 }
 
 ### 1) Parse options
-PASSWORD=''; DOMAIN=''; USERS=()
+PASSWORD=''; USERS=()
 while [[ $# -gt 0 ]]; do
   case $1 in
     -u)
@@ -52,8 +51,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     -p)
       PASSWORD=$2; shift 2;;
-    -d)
-      DOMAIN=$2; shift 2;;
     *)
       err "Argument inconnu : $1"
       ;;
@@ -62,11 +59,10 @@ done
 
 [ ${#USERS[@]} -ge 1 ] || err "Il faut au moins un utilisateur après -u"
 [ -n "$PASSWORD" ]    || err "Il manque -p PASSWORD"
-[ -n "$DOMAIN"   ]    || err "Il manque -d DOMAIN"
 
 # Mot de passe root MariaDB
 ROOT_PW='JSShFZtpt35MHX'
-
+DOMAIN='heh.lan'
 succ "Domaine    : $DOMAIN"
 succ "Password clients : $PASSWORD"
 succ "Clients à provisionner : ${USERS[*]}"
