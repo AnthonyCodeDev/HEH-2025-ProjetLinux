@@ -178,4 +178,4 @@ echo "Nom d'utilisateur : guest"
 echo "Mot de passe : (laissez vide)"
 echo ""
 
-print_success "Votre serveur est maintenant prêt à partager des dossiers via NFS et Samba sans authentification."
+print_success "Votre serveur est maintenant prêt à partager des dossiers via NFS et Samba sans authentification !"
