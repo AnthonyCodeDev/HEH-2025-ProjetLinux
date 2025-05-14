@@ -127,7 +127,7 @@ run_remote "${CERT_IP}" "
 scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
     "${SSH_USER}@${CERT_IP}:/etc/ssl/certs/wildcard.heh.lan.crt.pem" \
     ./windows.crt
-4) RÉCUPÉRATION DES CERTIFICATS EN LOCAL
+# 4) RÉCUPÉRATION DES CERTIFICATS EN LOCAL
 echo ">>> Récupération du(s) certificat(s) en local"
 mkdir -p "${LOCAL_CERT_DIR}"
 
