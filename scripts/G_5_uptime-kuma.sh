@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ----------------------------------------------------------------------------
 # setup_uptimekuma.sh
-# Installe Docker, démarre Uptime-Kuma (web) + wrapper REST,
+# Installe Docker si nécessaire, démarre Uptime-Kuma (web) + wrapper REST,
 # crée des moniteurs et une page de statut avec tous les moniteurs.
 # Usage: sudo ./setup_uptimekuma.sh monitors.conf
 # ----------------------------------------------------------------------------
@@ -14,12 +14,31 @@ CFG="${1:-}"
   exit 1
 }
 
-# 1. Dépendances
-for cmd in docker curl jq; do
-  command -v "$cmd" >/dev/null || { echo "[ERROR] '$cmd' manquant"; exit 1; }
+# 1. Vérifier et installer Docker si nécessaire
+if ! command -v docker >/dev/null; then
+  echo "[INFO] Docker non trouvé. Installation de Docker..."
+  # Installation pour Debian/Ubuntu
+  apt-get update
+  apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+  curl -fsSL https://download.docker.com/linux/$(. /etc/os-release && echo "$ID")/gpg \
+    | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+    https://download.docker.com/linux/$(. /etc/os-release && echo "$ID") \
+    $(lsb_release -cs) stable" \
+    | tee /etc/apt/sources.list.d/docker.list >/dev/null
+  apt-get update
+  apt-get install -y docker-ce docker-ce-cli containerd.io
+  systemctl enable --now docker
+  echo "[INFO] Docker installé et démarré."
+fi
+
+# 2. Vérifier les dépendances supplémentaires
+for cmd in curl jq; do
+  command -v "$cmd" >/dev/null || { echo "[ERROR] '$cmd' manquant" >&2; exit 1; }
 done
 
-# 2. Variables
+# 3. Variables
 UI_CN=uptime-kuma
 API_CN=uptime-kuma-api
 ADMIN_USER=admin
@@ -30,7 +49,7 @@ UI_IMG=louislam/uptime-kuma:latest
 API_IMG=medaziz11/uptimekuma_restapi:latest
 API_BASE="http://localhost:${API_PORT}"
 
-# 3. (Re)créer l’UI
+# 4. (Re)créer l’UI Uptime-Kuma
 docker rm -f "$UI_CN" >/dev/null 2>&1 || true
 docker run -d --name "$UI_CN" \
   -e ADMIN_USER="$ADMIN_USER" \
@@ -39,7 +58,7 @@ docker run -d --name "$UI_CN" \
   -v uptime-kuma-data:/app/data \
   "$UI_IMG"
 
-# 4. (Re)créer le wrapper REST
+# 5. (Re)créer le wrapper REST
 docker rm -f "$API_CN" >/dev/null 2>&1 || true
 docker run -d --name "$API_CN" \
   --link "$UI_CN":uptime_kuma \
@@ -52,14 +71,14 @@ docker run -d --name "$API_CN" \
   -p "$API_PORT":8000 \
   "$API_IMG"
 
-# 5. Attendre le wrapper REST
+# 6. Attendre le wrapper REST
 echo "[INFO] Attente du wrapper REST…"
 until curl -s -o /dev/null -w '%{http_code}' "$API_BASE/monitors" | grep -E -q '^[24]'; do
   sleep 2
 done
 echo "[INFO] Wrapper REST prêt."
 
-# 6. Authentification REST
+# 7. Authentification REST
 echo "[INFO] Récupération du token REST…"
 RESP=$(curl -s -X POST "$API_BASE/login/access-token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
@@ -73,7 +92,7 @@ if [[ -z "$TOKEN" ]]; then
 fi
 echo "[INFO] Token REST obtenu."
 
-# 7. Création des moniteurs
+# 8. Création des moniteurs
 echo "[INFO] Création des moniteurs…"
 while read -r name type addr interval; do
   [[ "$name" == \#* || -z "$name" ]] && continue
@@ -108,14 +127,10 @@ while read -r name type addr interval; do
   rm -f "$RESP_TMP"
 done < "$CFG"
 
-# 8. Création d’une page de statut affichant tous les moniteurs
+# 9. Création de la page de statut affichant tous les moniteurs
 echo "[INFO] Création de la page de statut..."
-
-# Récupérer la liste des IDs
 RAW=$(curl -s -H "Authorization: Bearer $TOKEN" "$API_BASE/monitors")
 MONITOR_IDS=$(echo "$RAW" | jq 'if (type=="object" and .monitors) then .monitors else . end | map(.id)')
-
-# Construire le payload selon l’API (publicGroupList)
 STATUSPAGE_PAYLOAD=$(jq -n \
   --arg name "Statut général" \
   --arg slug "statut-general" \
