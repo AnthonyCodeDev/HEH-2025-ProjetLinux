@@ -1,14 +1,56 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-#
-# VARIABLES — personnalisez les adresses IP si besoin
-#
-DATA_IP="10.42.0.99"
-CERT_IP="10.42.0.140"
-MONITORING_IP="10.42.0.140"
-TIME_IP="10.42.0.140"
-BACKUP_IP="10.42.0.140"
+usage() {
+  echo "Usage: $0 -data <IP_DATA> -certificat <IP_CERT> -monitoring <IP_MON> -time <IP_TIME> -backup <IP_BACKUP>"
+  exit 1
+}
+
+# Au moins 10 arguments attendus (5 options + 5 valeurs)
+if [ "$#" -lt 10 ]; then
+  usage
+fi
+
+# Lecture des options
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -data)
+      DATA_IP="$2"; shift 2
+      ;;
+    -certificat)
+      CERT_IP="$2"; shift 2
+      ;;
+    -monitoring)
+      MONITORING_IP="$2"; shift 2
+      ;;
+    -time)
+      TIME_IP="$2"; shift 2
+      ;;
+    -backup)
+      BACKUP_IP="$2"; shift 2
+      ;;
+    *)
+      echo "Option inconnue : $1"
+      usage
+      ;;
+  esac
+done
+
+# Vérification que toutes les variables sont définies
+for var in DATA_IP CERT_IP MONITORING_IP TIME_IP BACKUP_IP; do
+  if [[ -z "${!var:-}" ]]; then
+    echo "Erreur : la variable $var n'est pas définie"
+    usage
+  fi
+done
+
+echo "Variables configurées :
+  DATA_IP=$DATA_IP
+  CERT_IP=$CERT_IP
+  MONITORING_IP=$MONITORING_IP
+  TIME_IP=$TIME_IP
+  BACKUP_IP=$BACKUP_IP"
+
 
 SSH_USER="ec2-user"
 PRIVATE_KEY_FILE="./cert_key.pem"
