@@ -187,6 +187,12 @@ fi
 ### 8) Ouverture du port dans le pare-feu
 ### —───────────────────────────────────
 if command -v firewall-cmd &>/dev/null; then
+  info "→ Vérification de l'état de firewalld"
+  if ! sudo systemctl is-active --quiet firewalld; then
+    info "firewalld n'est pas actif, démarrage de firewalld"
+    sudo systemctl start firewalld
+    succ "firewalld démarré"
+  fi
   info "→ Ouverture du port $LISTEN_PORT dans firewalld"
   sudo firewall-cmd --add-port=${LISTEN_PORT}/tcp --permanent \
     && sudo firewall-cmd --reload \
