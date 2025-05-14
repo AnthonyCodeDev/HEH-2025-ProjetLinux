@@ -99,12 +99,12 @@ L’objectif est de mettre en place divers services réseau automatisés, monito
 | NFS              | Partage de dossier Linux                              | 2049            |
 | Samba            | Partage Windows & Linux                               | 445             |
 | SSH              | Administration sécurisée                              | 22              |
-| HTTP/HTTPS       | Serveur Web (Apache/Nginx)                            | 80 / 443        |
+| HTTP/HTTPS       | Serveur Web (Nginx)                                   | 80 / 443        |
 | FTP              | Upload/Download via vsftpd                            | 21              |
 | MySQL/PostgreSQL | Bases de données isolées par utilisateur              | 3306 / 5432     |
 | DNS (BIND9)      | Serveur de noms maître et cache, zone directe/inverse | 53              |
 | NTP (Chrony)     | Synchronisation horaire                               | 123             |
-| Monitoring       | Zabbix/Prometheus + Grafana (interface Web)           | 10050 / 3000    |
+| Monitoring       | cokpit                                                | 10050 / 3000    |
 
 ---
 
