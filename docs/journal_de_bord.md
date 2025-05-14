@@ -4,9 +4,9 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
 
 ---
 
-## Semaine 1 (11/05/2025 – 15/05/2025)
+## Semaine 1 (12/05/2025 – 15/05/2025)
 
-### Jour 1 – 2025-05-11
+### Jour 1 – 12-05-2025
 - **Tâches réalisées :** 
 
   - *Guillaume*
@@ -32,7 +32,7 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
 - **Observations :**  
   - Vérifier systématiquement les permissions avant chaque connexion SSH.
 
-### Jour 2 – 2025-05-12
+### Jour 2 – 12-05-2025
 - **Tâches réalisées :**  
   - Exécution du script `A_1_install_packages.sh` : installation de NFS, Samba, BIND9, Chrony.  
   - Exécution du script `A_2_configure_services.sh` : initialisation du partage FTP (vsftpd) et création des utilisateurs FTP.  
@@ -53,7 +53,7 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
 - **Observations :**  
   - Tester l’accès FTP avec un compte utilisateur minimal.
 
-### Jour 3 – 2025-05-12 (Après-midi)
+### Jour 3 – 13-05-2025
 - **Tâches réalisées :**  
   - Désinstallation complète de MariaDB/MySQL :  
     ```bash
@@ -71,34 +71,34 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
 - **Observations :**  
   - Prévoir une installation propre si nécessaire sur un serveur dédié.
 
-### Jour 4 – 2025-05-12 (Soir)
+### Jour 4 – 14-05-2025
 - **Tâches réalisées :**  
-  - Création et test du script `/usr/local/bin/backup_script.sh` :  
+  - Rédaction du rapport final  
     - `rsync` des dossiers `/var/www` et `/etc`  
     - Dump des bases de données et upload S3 avec rotation (> 7 jours)  
 - **Problèmes / Observations :**  
   - À automatiser via une tâche cron pour exécution quotidienne.
 
-### Jour 5 – 2025-05-12 (Tard)
+### Jour 5 – 15-05-2025
 - **Tâches réalisées :**  
-  - Démarrage du script `A_5_monitoring.sh` : installation de l’agent Zabbix/Prometheus et déploiement du dashboard Grafana.  
+  - Présentation du projet devant les professeurs.
 - **Problèmes rencontrés :**  
-  - Permissions Docker empêchant la collecte de certaines métriques.  
+  - ... 
 - **Solutions en cours :**  
-  - Ajustement du groupe d’accès au socket Docker.
+  - ...
 
 ---
 
 ## Chapitres suivants
 
-- **Semaine 2 :** Sécurisation (UFW, quotas, AppArmor), script `A_4_secure.sh`  
-- **Semaine 3 :** Finalisation du monitoring, alertes, tests de charge  
-- **Semaine 4 :** Quotas et rotation de logs (`A_6_quotas.sh`, `A_7_logrotate.sh`)  
-- **Semaine 5 :** Préparation de la démonstration et rapport final
+- **Lundi 12/05/2025 :** Sécurisation (UFW, quotas, AppArmor), script `A_4_secure.sh`  
+- **Mardi 13/05/2025 :** Finalisation des derniers scripts, sécurité, etc..  
+- **Mercredi 14/05/2025 :** Correction des derniers bugs + créer le script qui lancera tout a la fois  
+- **Jeudi 15/05/2025  :** Préparation de la démonstration et rapport final
 
 ---
 
 > **Conseils :**  
-> - Rédigez le journal au fil de l’eau, idéalement après chaque session.  
+> - Rédigez le journal a la fin de la journée, idéalement chaque soir.  
 > - Indiquez toujours les commandes exactes et les chemins de fichiers modifiés.  
-> - Notez le temps passé et concluez par une leçon apprise ou une piste d’amélioration.  
+> - Notez le temps passé et conclure par une leçon apprise ou une piste d’amélioration.  
