@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ----------------------------------------------------------------------------
 # setup_uptimekuma.sh
-# Installe Docker si nécessaire, démarre Uptime-Kuma (web) + wrapper REST,
+# Installe Docker si nécessaire (avec dnf), démarre Uptime-Kuma (web) + wrapper REST,
 # crée des moniteurs et une page de statut avec tous les moniteurs.
 # Usage: sudo ./setup_uptimekuma.sh monitors.conf
 # ----------------------------------------------------------------------------
@@ -16,19 +16,12 @@ CFG="${1:-}"
 
 # 1. Vérifier et installer Docker si nécessaire
 if ! command -v docker >/dev/null; then
-  echo "[INFO] Docker non trouvé. Installation de Docker..."
-  # Installation pour Debian/Ubuntu
-  apt-get update
-  apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-  curl -fsSL https://download.docker.com/linux/$(. /etc/os-release && echo "$ID")/gpg \
-    | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-  echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
-    https://download.docker.com/linux/$(. /etc/os-release && echo "$ID") \
-    $(lsb_release -cs) stable" \
-    | tee /etc/apt/sources.list.d/docker.list >/dev/null
-  apt-get update
-  apt-get install -y docker-ce docker-ce-cli containerd.io
+  echo "[INFO] Docker non trouvé. Installation de Docker avec dnf..."
+  # Préparer le dépôt Docker
+  dnf install -y dnf-plugins-core
+  dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  # Installer Docker Engine
+  dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
   systemctl enable --now docker
   echo "[INFO] Docker installé et démarré."
 fi
@@ -147,7 +140,7 @@ STATUSPAGE_PAYLOAD=$(jq -n \
      ]
    }')
 
-code=$(curl -s -w '%{http_code}' -o /dev/null \
+code=(curl -s -w '%{http_code}' -o /dev/null \
   -X POST "$API_BASE/statuspages" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
