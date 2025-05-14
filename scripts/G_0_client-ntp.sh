@@ -50,8 +50,16 @@ else
 fi
 
 # ─── CONFIGURATION CLIENT ──────────────────────────────────
-SERVER_IP="10.42.0.13"
-print_info "Utilisation de l'adresse IP du serveur NTP : $SERVER_IP"
+# Nouveau code : récupération dynamique de l'IP du serveur depuis le JSON
+JSON_PATH="/home/ec2-user/server_address.json"
+if [[ -f "$JSON_PATH" ]]; then
+    SERVER_IP=$(grep -oP '(?<="server_ip": ")[^"]+' "$JSON_PATH")
+    print_ok "IP du serveur récupérée depuis $JSON_PATH : $SERVER_IP"
+    print_info "Utilisation de l'adresse IP du serveur NTP : $SERVER_IP"
+else
+    print_error "Fichier JSON $JSON_PATH introuvable."
+    exit 1
+fi
 
 print_info "Sauvegarde de l'ancienne configuration..."
 sudo cp /etc/chrony.conf /etc/chrony.conf.backup && \
@@ -79,7 +87,7 @@ sudo systemctl restart chronyd && print_ok "Chronyd redémarré."
 # ─── VÉRIFICATION SYNCHRONISATION ───────────────────────────────
 print_info "Vérification de la synchronisation..."
 
-MAX_RETRIES=10
+MAX_RETRIES=5
 for ((i=1; i<=MAX_RETRIES; i++)); do
     LEAP_STATUS=$(chronyc tracking | grep "Leap status" | awk -F ': ' '{print $2}')
     if [[ "$LEAP_STATUS" == "Normal" ]]; then
@@ -87,9 +95,10 @@ for ((i=1; i<=MAX_RETRIES; i++)); do
         break
     else
         print_warn "Tentative $i/$MAX_RETRIES : Pas encore synchronisé..."
-        sleep 1
+        sleep 5
     fi
 done
+
 
 # Affiche l'état final
 chronyc tracking
