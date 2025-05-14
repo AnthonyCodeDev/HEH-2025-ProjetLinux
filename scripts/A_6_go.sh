@@ -162,7 +162,7 @@ scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
 run_remote "${MONITORING_IP}" "
   cd ~/HEH-2025-ProjetLinux/scripts &&
   sudo bash A_1_setup_client.sh -u monitoring -p pass &&
-  sudo bash A_2_monitoring.sh -d ${CERT_IP}
+  sudo bash A_2_monitoring.sh -d ${DATA_IP}
 "
 
 #
@@ -220,13 +220,14 @@ run_remote "${MONITORING_IP}" "
     -time ${TIME_IP} \
     -backup ${BACKUP_IP}
 "
-
+echo ""
 echo ">>> Tous les serveurs sont configurés ✅"
 echo "1. Serveur de Donnée: https://anthony.heh.lan"
 echo "2. Serveur de Monitoring: $MONITORING_IP:9090"
 echo "3. Serveur de Uptime Kuma: $MONITORING_IP:3001/dashboard"
-echo "4. Serveur de Backup: $BACKUP_IP (Pas d'accès web)"
-echo "5. Serveur de Temps: $TIME_IP (Pas d'accès web)"
-echo "6. Serveur de Certificat: $CERT_IP (Pas d'accès web)"
+echo " - Client Uptime Kuma: Utilisateur: admin - Mot de passe: admin123"
+echo "4. Serveur de Backup: $BACKUP_IP"
+echo "5. Serveur de Temps: $TIME_IP"
+echo "6. Serveur de Certificat: $CERT_IP"
 echo " - Client Samba: \\\\$DATA_IP\shared (guest, no password)"
 echo " - Client FTP: IP: $DATA_IP - Port: 21 - Utilisateur: anthony - Mot de passe: pass"
