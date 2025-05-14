@@ -206,4 +206,19 @@ run_remote "${BACKUP_IP}" "
   sudo /usr/local/bin/backup_script.sh
 "
 
+#
+# 9) SERVEUR UPTIME KUMA
+#
+
+echo ">>> Configuration du serveur MONITORING (UPTIME KUMA) (${MONITORING_IP})"
+run_remote "${MONITORING_IP}" "
+  cd ~/HEH-2025-ProjetLinux/scripts &&
+  sudo bash G_5_uptime-kuma.sh \
+    -data ${DATA_IP} \
+    -certificat ${CERT_IP} \
+    -monitoring ${MONITORING_IP} \
+    -time ${TIME_IP} \
+    -backup ${BACKUP_IP}
+"
+
 echo ">>> Tous les serveurs sont configurés ✅"
