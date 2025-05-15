@@ -199,6 +199,8 @@ if command -v firewall-cmd &>/dev/null; then
     && succ "Port $LISTEN_PORT/tcp ouvert"
 fi
 
+sleep 2
+
 ### —───────────────────────────────────
 ### 10) Vérification finale
 ### —───────────────────────────────────
