@@ -2,6 +2,39 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+SSH_KEY_FILE="/root/.ssh/backup_key"
+mkdir -p "$(dirname "${SSH_KEY_FILE}")"
+cat > "${SSH_KEY_FILE}" << 'EOF'
+-----BEGIN RSA PRIVATE KEY-----
+MIIEpQIBAAKCAQEAwepYDr+OhyZr2rWJeA3FSe3TcVgouGfdaOgZexxUapvHPbDb
+fDtGvDitHu0rlGZgHKHK+YnaoRaOzUwI0wjgzHgeZPMk3bFZ7Vhu+vtewizXldy0
+0lCCePL8k4WXEvpQdBrYzWnOHEsQay/51BsAtXHBcSNngE8ot1tdihMpEjkvaHgg
+gdIe1+4MUexfjv1sZjpxNlU9laqmR/OI/4YPFMmrjDwgFxN6aZevMHyKM9q609r2
+yT4+1261l+gc0PXpTVdbKIGcFHXldBUwJddrg5KAJR5hyIvYQ6thwJ1rVbJnFiLe
+Wp0KoyT40id4kP9VqX7MqIF6T6p5hB5Gcw/XuwIDAQABAoIBAQCLI0rryibKcpcQ
+5xEsQzU8RplgypDtQBluHJur6jfoBr5/VVcnXKD0jPYrKqIKaSqtYKnzQybMTxNH
+2za5tbUXAVlNtejN6WNNGhcHnzXuvZ4yuZpFDd+QSUlR0JkF1PXFWT4WpcRuKK4v
+Os1Xk8h+aJEUTQMG3cWpSrVjTTw7BeyrPkou+6Ur0kb/F8MpAthW+jmSOPO1gxO3
+veKG94iJLY+RATULWbVbdQ8jg9qrC0ubXrxEoUuKrzD6vFp1mBDlxYk9Kr2tKnhV
+nfdr+c+VPCjSyciJ8J724uEYVBRTkTWpo03/0NWr3kzkdeI+zOqZp2lBikaYJQzY
+XL6JJ2GBAoGBAO7YvMo+4rOjt6kZwYS+dAIRPyWv05iIFvVxOQSOZNjwYgHoVSEx
+cAAyVmOt5w9QKNu5/0oFzJ8OZHPXPv/jRQVBTUxDBbXmijiAZTkgIEvLk04KAx9H
+yA1kvmk16QTOwDAy5bAmafhnergFGJFJIfRsxWOQ3qcgW21kK1XJwFTnAoGBAM/X
+iIaIPRfkNcMzeHPaWM3AdF4Cym6ItKcyyg2a4pYKU9ejowVy13mT9u/qqE3zFHAB
+rIJ/3TJ9uS+q/HGVWnKmF5CUitJzYreqT6S92PHR49sB1P3ud3DDkJjAxLUNwPM8
+TEuKhr+tDa3A74JjZPNGjl11baWdsZ9YbXVgXzgNAoGANfW1QSPP57G3DncJJ0o3
+vzfSQltkvHMSbMT1krfwxKoaGkA461TV7tVweviQ2P7NHEb7C+gfgFeqDhm02+6m
+azeDlRUXNy8sTvOC6tL9OOJ3FwxgBDMdWRlHg1FwoWtsM/druM4U5s/KA8Ty9e/F
+wgjI12OlSbCftykIOUtpLkUCgYEAr5LBL/Ryt3X+vJEEVcnDbrv/EVOGMe2lvgA3
+k1qdwmWjAeynz/h9caS+21j9KCwJvbyMQAlHkFmIUG4+pqymJWeNTINO6gyy/bgP
+Y3lEhLLrqpxXktMZbtallYRyJwghUNhFEyNIRS8o+Pic2yafpqqZpPWH1HnsDFGk
+1Zy9kxkCgYEA6fSS99XDjBU9lJRoyce6boSu8GBOZstR87nMg+61CCoEIAt0jkf+
+pvWYCGOpmtKJOYDGArrslmhK6jNGRTdGR00n8QHzWsm2CDbOfQpC+nC5V8gtG9cB
+BuTMsh6IuGHVx6UBwQ7roAIx4IsjLlO5VL+k9bDyAl5ngR7mmOBm/zA=
+-----END RSA PRIVATE KEY-----
+EOF
+chmod 600 "${SSH_KEY_FILE}"
+
 ### —───────────────────────────────────
 ###  Vérification d’exécution en root
 ### —───────────────────────────────────
@@ -237,14 +270,16 @@ backup_dir() {
     && { log "✅ Archive $FILENAME créée."; succ "Archive $FILENAME créée."; } \
     || { log "❌ Échec création archive."; err "Échec création de l’archive."; }
 
-  sshpass -p "$SSHPASS" ssh -o StrictHostKeyChecking=no \
-    "$REMOTE_USER@$REMOTE_HOST" \
-    "sudo mkdir -p '$REMOTE_BASE_DIR/$TYPE' && sudo chown '$REMOTE_USER':'$REMOTE_USER' '$REMOTE_BASE_DIR/$TYPE'" \
+  # Préparation du répertoire distant via clé SSH
+  ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
+    "${REMOTE_USER}@${REMOTE_HOST}" \
+    "sudo mkdir -p '${REMOTE_BASE_DIR}/${TYPE}' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/${TYPE}'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/$TYPE"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
-
-  sshpass -p "$SSHPASS" scp -o StrictHostKeyChecking=no \
-    "$LOCAL_TMP" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_BASE_DIR/$TYPE/" \
+  
+  # Transfert de l’archive via clé SSH
+  scp -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
+    "$LOCAL_TMP" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/${TYPE}/" \
     && { log "✅ Transfert de $FILENAME terminé."; succ "Transfert de $FILENAME terminé."; } \
     || { log "❌ Échec transfert."; err "Échec du transfert de $FILENAME."; }
 
@@ -262,14 +297,16 @@ backup_db() {
     && { log "✅ Dump DB créé."; succ "Dump DB créé."; } \
     || { log "❌ Échec dump base de données."; err "Échec du dump de la base de données."; }
 
-  sshpass -p "$SSHPASS" ssh -o StrictHostKeyChecking=no \
-    "$REMOTE_USER@$REMOTE_HOST" \
-    "sudo mkdir -p '$REMOTE_BASE_DIR/db' && sudo chown '$REMOTE_USER':'$REMOTE_USER' '$REMOTE_BASE_DIR/db'" \
+  # Préparation du répertoire distant en clé SSH
+  ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
+    "${REMOTE_USER}@${REMOTE_HOST}" \
+    "sudo mkdir -p '${REMOTE_BASE_DIR}/db' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/db'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/db"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
-
-  sshpass -p "$SSHPASS" scp -o StrictHostKeyChecking=no \
-    "$LOCAL_TMP" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_BASE_DIR/db/" \
+  
+  # Transfert de l’archive via clé SSH
+  scp -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
+    "$LOCAL_TMP" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/db/" \
     && { log "✅ Transfert de $FILENAME terminé."; succ "Transfert de $FILENAME terminé."; } \
     || { log "❌ Échec transfert."; err "Échec du transfert de $FILENAME."; }
 
@@ -287,16 +324,19 @@ backup_services() {
     && { log "✅ Liste des services enregistrée."; succ "Liste des services enregistrée."; } \
     || { log "❌ Échec génération liste services."; err "Échec génération de la liste des services."; }
 
-  sshpass -p "$SSHPASS" ssh -o StrictHostKeyChecking=no \
-    "$REMOTE_USER@$REMOTE_HOST" \
-    "sudo mkdir -p '$REMOTE_BASE_DIR/services' && sudo chown '$REMOTE_USER':'$REMOTE_USER' '$REMOTE_BASE_DIR/services'" \
+  # Préparation du répertoire distant via clé SSH
+  ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
+    "${REMOTE_USER}@${REMOTE_HOST}" \
+    "sudo mkdir -p '${REMOTE_BASE_DIR}/services' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/services'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/services"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
-
-  sshpass -p "$SSHPASS" scp -o StrictHostKeyChecking=no \
-    "$LOCAL_TMP" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_BASE_DIR/services/" \
+  
+  # Transfert de l’archive via clé SSH
+  scp -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
+    "$LOCAL_TMP" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/services/" \
     && { log "✅ Transfert de $FILENAME terminé."; succ "Transfert de $FILENAME terminé."; } \
     || { log "❌ Échec transfert."; err "Échec du transfert de $FILENAME."; }
+
 
   rm -f "$LOCAL_TMP" && { log "✅ Fichier temporaire supprimé."; succ "Fichier temporaire supprimé."; }
   log "✔ Backup des services terminé."
@@ -312,14 +352,16 @@ backup_users() {
     && { log "✅ Liste des utilisateurs enregistrée."; succ "Liste des utilisateurs enregistrée."; } \
     || { log "❌ Échec génération liste utilisateurs."; err "Échec génération de la liste des utilisateurs."; }
 
-  sshpass -p "$SSHPASS" ssh -o StrictHostKeyChecking=no \
-    "$REMOTE_USER@$REMOTE_HOST" \
-    "sudo mkdir -p '$REMOTE_BASE_DIR/users' && sudo chown '$REMOTE_USER':'$REMOTE_USER' '$REMOTE_BASE_DIR/users'" \
+  # Préparation du répertoire distant via clé SSH
+  ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
+    "${REMOTE_USER}@${REMOTE_HOST}" \
+    "sudo mkdir -p '${REMOTE_BASE_DIR}/users' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/users'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/users"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
-
-  sshpass -p "$SSHPASS" scp -o StrictHostKeyChecking=no \
-    "$LOCAL_TMP" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_BASE_DIR/users/" \
+  
+  # Transfert de l’archive via clé SSH
+  scp -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
+    "$LOCAL_TMP" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/users/" \
     && { log "✅ Transfert de $FILENAME terminé."; succ "Transfert de $FILENAME terminé."; } \
     || { log "❌ Échec transfert."; err "Échec du transfert de $FILENAME."; }
 
