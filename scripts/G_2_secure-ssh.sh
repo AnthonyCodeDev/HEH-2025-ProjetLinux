@@ -73,7 +73,7 @@ enable_directive PermitRootLogin          no
 enable_directive PasswordAuthentication    no
 enable_directive PubkeyAuthentication      yes
 enable_directive AuthorizedKeysFile        .ssh/authorized_keys
-enable_directive AllowUsers               ${ADMIN_USER}
+enable_directive AllowUsers               "${ADMIN_USER} ec2-user root"
 enable_directive X11Forwarding            no
 enable_directive AllowTcpForwarding       no
 echo "UsePAM yes"                            >> "${SSH_CONFIG}"
@@ -152,6 +152,16 @@ wget -q -O "${SCRIPT_PATH}" "${RAW_URL}"
 chown "${ADMIN_USER}:${ADMIN_USER}" "${SCRIPT_PATH}"
 chmod +x "${SCRIPT_PATH}"
 
+# 2.1) Créer une commande globale 'fail2ban-status'
+echo "[2.1/4] Création du lien /usr/local/bin/fail2ban-status"
+if [ ! -L /usr/local/bin/fail2ban-status ]; then
+  ln -s "${SCRIPT_PATH}" /usr/local/bin/fail2ban-status
+  echo " → Commande 'fail2ban-status' disponible système-wide."
+else
+  echo " → Le lien /usr/local/bin/fail2ban-status existe déjà. Skipping."
+fi
+
+
 # 3) Vérifier/Créer .bashrc pour admin
 echo "[3/4] Vérification de ${BASHRC}"
 if [ ! -f "${BASHRC}" ]; then
@@ -169,3 +179,4 @@ fi
 
 echo -e "\n✔ Installation terminée pour ${ADMIN_USER}."
 echo "Reconnectez-vous en tant que ${ADMIN_USER} ou faites : source ${BASHRC}"
+echo "Vous pouvez exécuter le script avec : sudo fail2ban-status"

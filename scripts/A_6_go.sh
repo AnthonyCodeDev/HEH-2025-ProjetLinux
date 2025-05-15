@@ -109,6 +109,7 @@ run_remote "${DATA_IP}" "
   sudo dnf install -y git &&
   git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true &&
   cd ~/HEH-2025-ProjetLinux/scripts &&
+  sudo bash G_4_mount_xvdb.sh &&
   sudo bash A_0_setup_nfs_samba.sh
 "
 
@@ -203,7 +204,7 @@ scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
 run_remote "${BACKUP_IP}" "
   sudo cp ~/HEH-2025-ProjetLinux/scripts/A_3_backup_server.sh /usr/local/bin/backup_script.sh
   sudo chmod +x /usr/local/bin/backup_script.sh
-  sudo /usr/local/bin/backup_script.sh
+  sudo /usr/local/bin/backup_script.sh -ip ${DATA_IP} all
 "
 
 #
@@ -220,6 +221,19 @@ run_remote "${MONITORING_IP}" "
     -time ${TIME_IP} \
     -backup ${BACKUP_IP}
 "
+
+# Configurer Secure SSH sur le serveur de données
+echo ">>> Configuration de SSH sécurisé sur le serveur DATA (${DATA_IP})"
+run_remote "${DATA_IP}" "
+  sudo bash ~/HEH-2025-ProjetLinux/scripts/G_2_secure-ssh.sh
+"
+
+# Mettre à jour automatiquement le kernel et le dns
+echo ">>> Configuration de la mise à jour automatique du kernel et des packets DNF (sécurité, noyau, bibliothèques) (${DATA_IP})"
+run_remote "${DATA_IP}" "
+  sudo bash ~/HEH-2025-ProjetLinux/scripts/G_6_setup-auto-updates.sh
+"
+
 echo ""
 echo ">>> Tous les serveurs sont configurés ✅"
 echo "1. Serveur de Donnée: https://anthony.heh.lan"
@@ -231,3 +245,6 @@ echo "5. Serveur de Temps: $TIME_IP"
 echo "6. Serveur de Certificat: $CERT_IP"
 echo " - Client Samba: \\\\$DATA_IP\shared (guest, no password)"
 echo " - Client FTP: IP: $DATA_IP - Port: 21 - Utilisateur: anthony - Mot de passe: pass"
+echo " - Vous pouvez voir le panel fail2ban avec : sudo fail2ban-status"
+echo " - Vous pouvez vérifier les mises à jour automatiques avec : journalctl -u dnf-automatic.service --no-pager"
+echo " - Voir les backups automatique : ssh backup@$BACKUP_IP 'crontab -l' (pxmiXvkEte808X) et ls -lR /backups"
