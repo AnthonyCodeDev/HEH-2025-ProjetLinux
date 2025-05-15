@@ -172,6 +172,20 @@ sudo sed -i 's|^#\?local_enable=.*|local_enable=YES|'   "$VSF"
 sudo sed -i 's|^#\?write_enable=.*|write_enable=YES|'   "$VSF"
 # chroot et autoriser write dans chroot
 sudo sed -i 's|^#\?chroot_local_user=.*|chroot_local_user=YES|' "$VSF"
+
+sudo sed -i 's|^#\?user_sub_token=.*|user_sub_token=$USER|' "$VSF"
+sudo sed -i 's|^#\?local_root=.*|local_root=/var/www/$USER|' "$VSF"
+
+if ! grep -q '^user_sub_token=' "$VSF"; then
+  echo 'user_sub_token=$USER' | sudo tee -a "$VSF"
+  succ "Ajout de user_sub_token=\$USER dans $VSF"
+fi
+
+if ! grep -q '^local_root=' "$VSF"; then
+  echo 'local_root=/var/www/$USER' | sudo tee -a "$VSF"
+  succ "Ajout de local_root=/var/www/\$USER dans $VSF"
+fi
+
 if grep -q '^allow_writeable_chroot' "$VSF"; then
   sudo sed -i 's|^allow_writeable_chroot=.*|allow_writeable_chroot=YES|' "$VSF"
 else
