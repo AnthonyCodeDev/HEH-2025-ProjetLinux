@@ -70,13 +70,10 @@ succ "Clients à provisionner : ${USERS[*]}"
 SSL_CERT="/etc/ssl/certs/wildcard.${DOMAIN}.crt.pem"
 SSL_KEY="/etc/ssl/private/wildcard.${DOMAIN}.key.pem"
 
-if [[ ! -f "$SSL_CERT" ]]; then
-  err "Certificat wildcard SSL non trouvé. Génère le certificat SSL (*.${DOMAIN}) avant d'exécuter ce script.1"
-fi
+echo "Certificat SSL : $SSL_CERT"
+echo "Clé SSL : $SSL_KEY"
 
-if [[ ! -f "$SSL_KEY" ]]; then
-  err "Certificat wildcard SSL non trouvé. Génère le certificat SSL (*.${DOMAIN}) avant d'exécuter ce script.2"
-fi
+sudo cat "$SSL_CERT"
 
 if [[ ! -f "$SSL_CERT" || ! -f "$SSL_KEY" ]]; then
   err "Certificat wildcard SSL non trouvé. Génère le certificat SSL (*.${DOMAIN}) avant d'exécuter ce script.3"
