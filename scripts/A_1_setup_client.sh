@@ -70,8 +70,16 @@ succ "Clients à provisionner : ${USERS[*]}"
 SSL_CERT="/etc/ssl/certs/wildcard.${DOMAIN}.crt.pem"
 SSL_KEY="/etc/ssl/private/wildcard.${DOMAIN}.key.pem"
 
+if [[ ! -f "$SSL_CERT" ]]; then
+  err "Certificat wildcard SSL non trouvé. Génère le certificat SSL (*.${DOMAIN}) avant d'exécuter ce script.1"
+fi
+
+if [[ ! -f "$SSL_KEY" ]]; then
+  err "Certificat wildcard SSL non trouvé. Génère le certificat SSL (*.${DOMAIN}) avant d'exécuter ce script.2"
+fi
+
 if [[ ! -f "$SSL_CERT" || ! -f "$SSL_KEY" ]]; then
-  err "Certificat wildcard SSL non trouvé. Génère le certificat SSL (*.${DOMAIN}) avant d'exécuter ce script."
+  err "Certificat wildcard SSL non trouvé. Génère le certificat SSL (*.${DOMAIN}) avant d'exécuter ce script.3"
 fi
 
 ### 2) Détection pkg manager & SQL client
