@@ -173,7 +173,7 @@ run_remote "${DATA_IP}" "
   cd ~/HEH-2025-ProjetLinux/scripts &&
   sudo bash A_1_setup_client.sh -u monitoring anthony guillaume -p pass &&
   sudo bash A_1_setup_client.sh -u backup -p pxmiXvkEte808X &&
-  sudo bash A_2_monitoring.sh -d ${CERT_IP} &&
+  sudo bash A_2_monitoring.sh -d ${DATA_IP} &&
   sudo bash G_3_setup-dns.sh
 "
 
