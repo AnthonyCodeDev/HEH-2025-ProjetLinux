@@ -60,7 +60,7 @@ fi
 
 for cmd in curl jq docker dnf python3 pip3 firefox; do
   if ! command -v "$cmd" >/dev/null; then
-    echo "[DEBUG] '$cmd' non trouvé, installation via dnf..."
+    echo "[DEBUG] service non trouvé, installation via dnf..."
     dnf install -y "$cmd" >/dev/null 2>&1 || {
       echo "[ERROR] Impossible d'installer '$cmd'" >&2
       exit 1
