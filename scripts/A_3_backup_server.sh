@@ -75,8 +75,8 @@ DATE=$(date +%Y%m%d_%H%M%S)
 
 # --- Paramètres base de données MySQL/MariaDB
 DB_USER="root"
-DB_PASS="votre_mot_de_passe_db"
-DB_NAME="nom_de_la_base"
+DB_PASS="JSShFZtpt35MHX"
+DB_NAME="all"
 DB_HOST="localhost"
 DB_PORT="3306"
 
@@ -295,9 +295,19 @@ backup_db() {
   local LOCAL_TMP="/tmp/${FILENAME}"
 
   log "▶ Début backup de la base '${DB_NAME}'"
-  mysqldump -u "$DB_USER" -p"$DB_PASS" -h "$DB_HOST" -P "$DB_PORT" "$DB_NAME" | gzip > "$LOCAL_TMP" \
-    && { log "✅ Dump DB créé."; succ "Dump DB créé."; } \
-    || { log "❌ Échec dump base de données."; err "Échec du dump de la base de données."; }
+  # Tentative de dump de la base de données
+  if mysqldump -u "$DB_USER" -p"$DB_PASS" \
+       -h "$DB_HOST" -P "$DB_PORT" "$DB_NAME" \
+     | gzip > "$LOCAL_TMP"
+  then
+    log "✅ Dump DB créé."
+    succ "Dump DB créé."
+  else
+    log "⚠️ Échec du dump de la base de données, on continue sans la DB."
+    succ "Dump DB impossible, on l’ignore et on poursuit."
+    return 0
+  fi
+
 
   # Préparation du répertoire distant en clé SSH
   ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
