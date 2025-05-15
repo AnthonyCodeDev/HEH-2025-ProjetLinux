@@ -67,7 +67,7 @@ info() {
 ###  CONFIGURATION GÉNÉRALE
 ### —───────────────────────────────────
 SCRIPT_PATH="/usr/local/bin/backup_script.sh"
-REMOTE_USER="backup"
+REMOTE_USER="ec2-user"
 SSHPASS="pxmiXvkEte808X"
 REMOTE_BASE_DIR="/backups"
 LOGFILE="/var/log/backup_script.log"
