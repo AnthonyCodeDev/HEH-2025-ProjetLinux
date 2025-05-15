@@ -191,14 +191,19 @@ fi
 
 for IP in "${CLIENTS[@]}"; do
     print_info "Envoi à $IP..."
-    scp -i "$KEY_PATH" \
+    scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -i "$KEY_PATH" \
         "$SCRIPT_CLIENT" \
         "$JSON_PATH" \
         "${SSH_USER}@${IP}:/home/${SSH_USER}/" && \
-    ssh -i "$KEY_PATH" "${SSH_USER}@${IP}" "chmod +x /home/${SSH_USER}/${SCRIPT_CLIENT} && sudo /home/${SSH_USER}/${SCRIPT_CLIENT}" && \
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -i "$KEY_PATH" \
+        "${SSH_USER}@${IP}" \
+        "chmod +x /home/${SSH_USER}/${SCRIPT_CLIENT} && sudo /home/${SSH_USER}/${SCRIPT_CLIENT}" && \
     print_ok "Script déployé et exécuté sur $IP." || \
     print_error "Échec du déploiement ou de l'exécution sur $IP."
 done
+
 
 print_ok "Tous les clients ont reçu le script NTP (IP: ${CLIENTS[*]})."
 
