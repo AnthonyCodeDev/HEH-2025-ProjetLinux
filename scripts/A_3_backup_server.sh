@@ -67,7 +67,8 @@ info() {
 ###  CONFIGURATION GÉNÉRALE
 ### —───────────────────────────────────
 SCRIPT_PATH="/usr/local/bin/backup_script.sh"
-REMOTE_USER="ec2-user"
+REMOTE_TRANSFER_USER="ec2-user"
+REMOTE_USER="backup"
 SSHPASS="pxmiXvkEte808X"
 REMOTE_BASE_DIR="/backups"
 LOGFILE="/var/log/backup_script.log"
@@ -274,14 +275,14 @@ backup_dir() {
 
   # Préparation du répertoire distant via clé SSH
   ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
-    "${REMOTE_USER}@${REMOTE_HOST}" \
+    "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}" \
     "sudo mkdir -p '${REMOTE_BASE_DIR}/${TYPE}' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/${TYPE}'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/$TYPE"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
   
   # Transfert de l’archive via clé SSH
   scp -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
-    "$LOCAL_TMP" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/${TYPE}/" \
+    "$LOCAL_TMP" "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/${TYPE}/" \
     && { log "✅ Transfert de $FILENAME terminé."; succ "Transfert de $FILENAME terminé."; } \
     || { log "❌ Échec transfert."; err "Échec du transfert de $FILENAME."; }
 
@@ -311,14 +312,14 @@ backup_db() {
 
   # Préparation du répertoire distant en clé SSH
   ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
-    "${REMOTE_USER}@${REMOTE_HOST}" \
+    "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}" \
     "sudo mkdir -p '${REMOTE_BASE_DIR}/db' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/db'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/db"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
   
   # Transfert de l’archive via clé SSH
   scp -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
-    "$LOCAL_TMP" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/db/" \
+    "$LOCAL_TMP" "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/db/" \
     && { log "✅ Transfert de $FILENAME terminé."; succ "Transfert de $FILENAME terminé."; } \
     || { log "❌ Échec transfert."; err "Échec du transfert de $FILENAME."; }
 
@@ -338,14 +339,14 @@ backup_services() {
 
   # Préparation du répertoire distant via clé SSH
   ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
-    "${REMOTE_USER}@${REMOTE_HOST}" \
+    "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}" \
     "sudo mkdir -p '${REMOTE_BASE_DIR}/services' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/services'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/services"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
   
   # Transfert de l’archive via clé SSH
   scp -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
-    "$LOCAL_TMP" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/services/" \
+    "$LOCAL_TMP" "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/services/" \
     && { log "✅ Transfert de $FILENAME terminé."; succ "Transfert de $FILENAME terminé."; } \
     || { log "❌ Échec transfert."; err "Échec du transfert de $FILENAME."; }
 
@@ -366,14 +367,14 @@ backup_users() {
 
   # Préparation du répertoire distant via clé SSH
   ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
-    "${REMOTE_USER}@${REMOTE_HOST}" \
+    "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}" \
     "sudo mkdir -p '${REMOTE_BASE_DIR}/users' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/users'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/users"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
   
   # Transfert de l’archive via clé SSH
   scp -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
-    "$LOCAL_TMP" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/users/" \
+    "$LOCAL_TMP" "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}:${REMOTE_BASE_DIR}/users/" \
     && { log "✅ Transfert de $FILENAME terminé."; succ "Transfert de $FILENAME terminé."; } \
     || { log "❌ Échec transfert."; err "Échec du transfert de $FILENAME."; }
 
