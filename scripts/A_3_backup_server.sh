@@ -271,9 +271,6 @@ backup_dir() {
   local LOCAL_TMP="/tmp/${FILENAME}"
 
   log "▶ Début backup « ${TYPE} » de ${SRC}"
-  [ -d "$SRC" ] || { log "❌ Répertoire source $SRC introuvable."; err "Répertoire source $SRC introuvable."; }
-
-  log "▶ Début backup « ${TYPE} » de ${SRC}"
   if [ ! -d "$SRC" ]; then
     log  "⚠️ Répertoire source ${SRC} introuvable, on passe au type « ${TYPE} »."
     succ "Passage du backup « ${TYPE} » : le répertoire ${SRC} n'existe pas."
