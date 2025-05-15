@@ -124,7 +124,6 @@ run_remote "${CERT_IP}" "
     | sudo bash -s -- -ip ${DATA_IP}
 "
 
-
 scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
     "${SSH_USER}@${CERT_IP}:/etc/ssl/certs/wildcard.heh.lan.crt.pem" \
     ./windows.crt
@@ -147,6 +146,15 @@ scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
   "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.crt.pem"
 
 echo "✅ Clé et certificat récupérés dans : ${LOCAL_CERT_DIR}/"
+
+# Copier wildcard.heh.lan.crt.pem et wildcard.heh.lan.key.pem dans /etc/ssl/certs/wildcard.heh.lan.crt.pem et /etc/ssl/private/wildcard.heh.lan.key.pem sur le serveur de données
+
+scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
+    "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.crt.pem" \
+    "${SSH_USER}@${DATA_IP}:/etc/ssl/certs/wildcard.${DOMAIN}.crt.pem"
+scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
+    "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.key.pem" \
+    "${SSH_USER}@${DATA_IP}:/etc/ssl/private/wildcard.${DOMAIN}.key.pem"
 
 
 #
