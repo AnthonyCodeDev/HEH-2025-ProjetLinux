@@ -273,9 +273,17 @@ backup_dir() {
   log "▶ Début backup « ${TYPE} » de ${SRC}"
   [ -d "$SRC" ] || { log "❌ Répertoire source $SRC introuvable."; err "Répertoire source $SRC introuvable."; }
 
+  log "▶ Début backup « ${TYPE} » de ${SRC}"
+  if [ ! -d "$SRC" ]; then
+    log  "⚠️ Répertoire source ${SRC} introuvable, on passe au type « ${TYPE} »."
+    succ "Passage du backup « ${TYPE} » : le répertoire ${SRC} n'existe pas."
+    return 0
+  fi
+
   tar -czf "$LOCAL_TMP" -C "$SRC" . \
     && { log "✅ Archive $FILENAME créée."; succ "Archive $FILENAME créée."; } \
-    || { log "❌ Échec création archive."; err "Échec création de l’archive."; }
+    || { log "❌ Échec création de l’archive."; err "Échec création de l’archive."; }
+
 
   # Préparation du répertoire distant via clé SSH
   ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
