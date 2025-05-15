@@ -106,24 +106,24 @@ run_remote() {
 #
 echo ">>> Configuration du serveur DATA (${DATA_IP})"
 run_remote "${DATA_IP}" "
-  sudo dnf install -y git &&
-  git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true &&
-  cd ~/HEH-2025-ProjetLinux/scripts &&
-  sudo bash G_4_mount_xvdb.sh &&
-  sudo bash A_0_setup_nfs_samba.sh
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_4_mount_xvdb.sh \
+    | sudo bash &&
+
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_0_setup_nfs_samba.sh \
+    | sudo bash
 "
+
+
 
 #
 # 3) SERVEUR DE CERTIFICAT — génération des certificats
 #
 echo ">>> Configuration du serveur CERTIFICAT (${CERT_IP})"
 run_remote "${CERT_IP}" "
-  sudo dnf install -y git &&
-  git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true &&
-  cd ~/HEH-2025-ProjetLinux/scripts &&
-  sudo bash A_5_generate_certif.sh \
-    -ip ${DATA_IP} \
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_5_generate_certif.sh \
+    | sudo bash -s -- -ip ${DATA_IP}
 "
+
 
 scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
     "${SSH_USER}@${CERT_IP}:/etc/ssl/certs/wildcard.heh.lan.crt.pem" \
@@ -153,17 +153,19 @@ echo "✅ Clé et certificat récupérés dans : ${LOCAL_CERT_DIR}/"
 # 5) SERVEUR DE MONITORING — clone + installation + monitoring
 #
 echo ">>> Configuration du serveur MONITORING (${MONITORING_IP})"
-run_remote "${MONITORING_IP}" "
-  sudo dnf install -y git &&
-  git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true
-"
+
+# Copier les certificats sur la home de l’utilisateur distant
 scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
     "${LOCAL_CERT_DIR}/"*.pem \
-    "${SSH_USER}@${MONITORING_IP}:/home/ec2-user/HEH-2025-ProjetLinux/scripts/"
+    "${SSH_USER}@${MONITORING_IP}:~/"
+
+# Télécharger et exécuter les scripts directement depuis GitHub
 run_remote "${MONITORING_IP}" "
-  cd ~/HEH-2025-ProjetLinux/scripts &&
-  sudo bash A_1_setup_client.sh -u monitoring -p pass &&
-  sudo bash A_2_monitoring.sh -d ${DATA_IP}
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_1_setup_client.sh \
+    | sudo bash -s -- -u monitoring -p pass &&
+
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_2_monitoring.sh \
+    | sudo bash -s -- -d ${DATA_IP}
 "
 
 #
@@ -171,39 +173,50 @@ run_remote "${MONITORING_IP}" "
 #
 echo ">>> Ajout des clients MONITORING & BACKUP sur DATA (${DATA_IP})"
 run_remote "${DATA_IP}" "
-  cd ~/HEH-2025-ProjetLinux/scripts &&
-  sudo bash A_1_setup_client.sh -u monitoring anthony guillaume -p pass &&
-  sudo bash A_1_setup_client.sh -u backup -p pxmiXvkEte808X &&
-  sudo bash A_2_monitoring.sh -d ${DATA_IP} &&
-  sudo bash G_3_setup-dns.sh
+  # Configuration client monitoring
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_1_setup_client.sh \
+    | sudo bash -s -- -u monitoring anthony guillaume -p pass &&
+
+  # Configuration client backup
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_1_setup_client.sh \
+    | sudo bash -s -- -u backup -p pxmiXvkEte808X &&
+
+  # Activation du monitoring
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_2_monitoring.sh \
+    | sudo bash -s -- -d ${DATA_IP} &&
+
+  # Mise en place DNS
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_3_setup-dns.sh \
+    | sudo bash -s --
 "
+
 
 #
 # 7) SERVEUR DE TEMPS — NTP
 #
 echo ">>> Configuration du serveur TEMPS (${TIME_IP})"
 run_remote "${TIME_IP}" "
-  sudo dnf install -y git &&
-  git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true &&
-  cd ~/HEH-2025-ProjetLinux/scripts &&
-  sudo bash G_1_setup-ntp.sh ${DATA_IP}
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_1_setup-ntp.sh \
+    | sudo bash -s -- ${DATA_IP}
 "
 
 #
 # 8) SERVEUR DE BACKUP — clone + client + backup
 #
 echo ">>> Configuration du serveur BACKUP (${BACKUP_IP})"
-run_remote "${BACKUP_IP}" "
-  sudo dnf install -y git &&
-  git clone ${REPO_URL} ~/HEH-2025-ProjetLinux || true
-"
+
+# Copier les certificats sur la home de l’utilisateur distant
 scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
     "${LOCAL_CERT_DIR}/"*.pem \
-    "${SSH_USER}@${BACKUP_IP}:/home/ec2-user/HEH-2025-ProjetLinux/scripts/"
+    "${SSH_USER}@${BACKUP_IP}:~/"
 
+# Télécharger, installer et lancer le script de backup
 run_remote "${BACKUP_IP}" "
-  sudo cp ~/HEH-2025-ProjetLinux/scripts/A_3_backup_server.sh /usr/local/bin/backup_script.sh
-  sudo chmod +x /usr/local/bin/backup_script.sh
+  sudo wget -qO /usr/local/bin/backup_script.sh \
+    https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_3_backup_server.sh &&
+
+  sudo chmod +x /usr/local/bin/backup_script.sh &&
+
   sudo /usr/local/bin/backup_script.sh -ip ${DATA_IP} all
 "
 
@@ -213,32 +226,34 @@ run_remote "${BACKUP_IP}" "
 
 echo ">>> Configuration du serveur MONITORING (UPTIME KUMA) (${MONITORING_IP})"
 run_remote "${MONITORING_IP}" "
-  cd ~/HEH-2025-ProjetLinux/scripts &&
-  sudo bash G_5_uptime-kuma.sh \
-    -data ${DATA_IP} \
-    -certificat ${CERT_IP} \
-    -monitoring ${MONITORING_IP} \
-    -time ${TIME_IP} \
-    -backup ${BACKUP_IP}
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_5_uptime-kuma.sh \
+    | sudo bash -s -- \
+      -data ${DATA_IP} \
+      -certificat ${CERT_IP} \
+      -monitoring ${MONITORING_IP} \
+      -time ${TIME_IP} \
+      -backup ${BACKUP_IP}
 "
 
-# Configurer Secure SSH sur le serveur de données
+# Configuration de SSH sécurisé sur DATA
 echo ">>> Configuration de SSH sécurisé sur le serveur DATA (${DATA_IP})"
 run_remote "${DATA_IP}" "
-  sudo bash ~/HEH-2025-ProjetLinux/scripts/G_2_secure-ssh.sh
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_2_secure-ssh.sh \
+    | sudo bash
 "
 
-# Mettre à jour automatiquement le kernel et le dns
-echo ">>> Configuration de la mise à jour automatique du kernel et des packets DNF (sécurité, noyau, bibliothèques) (${DATA_IP})"
+# Mise à jour automatique du kernel et des paquets DNF
+echo ">>> Configuration de la mise à jour automatique du kernel et des paquets DNF (${DATA_IP})"
 run_remote "${DATA_IP}" "
-  sudo bash ~/HEH-2025-ProjetLinux/scripts/G_6_setup-auto-updates.sh
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_6_setup-auto-updates.sh \
+    | sudo bash
 "
 
 # Lancer Trivy (Vérification de sécurité)
 echo ">>> Lancement de Trivy pour la vérification de sécurité (${DATA_IP})"
 run_remote "${DATA_IP}" "
-  cd ~/HEH-2025-ProjetLinux/scripts &&
-  sudo bash G_7_scan_trivy.sh
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_7_scan_trivy.sh \
+    | sudo bash
 "
 
 # Afficher le Résumé de la configuration
