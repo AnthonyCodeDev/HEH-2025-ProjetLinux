@@ -210,6 +210,11 @@ run_remote "${DATA_IP}" "
 #
 echo ">>> Configuration du serveur TEMPS (${TIME_IP})"
 run_remote "${TIME_IP}" "
+  # 0) On télécharge le client NTP sans l'exécuter
+  wget -qO ~/G_0_client-ntp.sh \
+    https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_0_client-ntp.sh &&
+
+  # 1) On configure le serveur NTP
   wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_1_setup-ntp.sh \
     | sudo bash -s -- ${DATA_IP}
 "
