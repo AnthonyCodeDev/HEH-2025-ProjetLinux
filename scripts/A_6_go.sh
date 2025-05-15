@@ -173,6 +173,22 @@ scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
     "${LOCAL_CERT_DIR}/"*.pem \
     "${SSH_USER}@${MONITORING_IP}:~/"
 
+run_remote "${MONITORING_IP}" "
+  DOMAIN=\"heh.lan\"
+
+  echo '>>> Déploiement des certificats sur MONITORING'
+  # Copie dans /etc/ssl/certs et /etc/ssl/private
+  sudo cp \"/home/ec2-user/wildcard.\${DOMAIN}.crt.pem\" \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+  sudo cp \"/home/ec2-user/wildcard.\${DOMAIN}.key.pem\"  \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+
+  # Ajustement des propriétaires et permissions
+  sudo chown root:root \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+  sudo chmod 644      \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+
+  sudo chown root:root \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+  sudo chmod 600      \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\"
+"
+
 # Télécharger et exécuter les scripts directement depuis GitHub
 run_remote "${MONITORING_IP}" "
   wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_1_setup_client.sh \
@@ -228,6 +244,22 @@ echo ">>> Configuration du serveur BACKUP (${BACKUP_IP})"
 scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
     "${LOCAL_CERT_DIR}/"*.pem \
     "${SSH_USER}@${BACKUP_IP}:~/"
+
+run_remote "${BACKUP_IP}" "
+  DOMAIN=\"heh.lan\"
+
+  echo '>>> Déploiement des certificats sur BACKUP'
+  # Copie dans /etc/ssl/certs et /etc/ssl/private
+  sudo cp \"/home/ec2-user/wildcard.\${DOMAIN}.crt.pem\" \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+  sudo cp \"/home/ec2-user/wildcard.\${DOMAIN}.key.pem\"  \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+
+  # Ajustement des propriétaires et permissions
+  sudo chown root:root \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+  sudo chmod 644      \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+
+  sudo chown root:root \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+  sudo chmod 600      \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\"
+"
 
 # Télécharger, installer et lancer le script de backup
 run_remote "${BACKUP_IP}" "
