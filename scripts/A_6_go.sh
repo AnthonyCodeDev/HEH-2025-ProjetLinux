@@ -177,16 +177,22 @@ run_remote "${MONITORING_IP}" "
   DOMAIN=\"heh.lan\"
 
   echo '>>> Déploiement des certificats sur MONITORING'
+  # Création des dossiers si nécessaire
+  sudo mkdir -p /etc/ssl/certs /etc/ssl/private &&
+
   # Copie dans /etc/ssl/certs et /etc/ssl/private
-  sudo cp \"/home/ec2-user/wildcard.\${DOMAIN}.crt.pem\" \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
-  sudo cp \"/home/ec2-user/wildcard.\${DOMAIN}.key.pem\"  \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+  sudo cp \"/home/${SSH_USER}/wildcard.\${DOMAIN}.crt.pem\"   \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+  sudo cp \"/home/${SSH_USER}/wildcard.\${DOMAIN}.key.pem\"   \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
 
   # Ajustement des propriétaires et permissions
   sudo chown root:root \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
   sudo chmod 644      \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
 
   sudo chown root:root \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
-  sudo chmod 600      \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\"
+  sudo chmod 600      \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+
+  # (optionnel) suppression des sources dans le home
+  sudo rm -f \"/home/${SSH_USER}/wildcard.\${DOMAIN}.\"*.pem
 "
 
 # Télécharger et exécuter les scripts directement depuis GitHub
@@ -249,16 +255,22 @@ run_remote "${BACKUP_IP}" "
   DOMAIN=\"heh.lan\"
 
   echo '>>> Déploiement des certificats sur BACKUP'
+  # Création des dossiers si nécessaire
+  sudo mkdir -p /etc/ssl/certs /etc/ssl/private &&
+
   # Copie dans /etc/ssl/certs et /etc/ssl/private
-  sudo cp \"/home/ec2-user/wildcard.\${DOMAIN}.crt.pem\" \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
-  sudo cp \"/home/ec2-user/wildcard.\${DOMAIN}.key.pem\"  \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+  sudo cp \"/home/${SSH_USER}/wildcard.\${DOMAIN}.crt.pem\"   \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+  sudo cp \"/home/${SSH_USER}/wildcard.\${DOMAIN}.key.pem\"   \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
 
   # Ajustement des propriétaires et permissions
   sudo chown root:root \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
   sudo chmod 644      \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
 
   sudo chown root:root \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
-  sudo chmod 600      \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\"
+  sudo chmod 600      \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+
+  # (optionnel) suppression des sources dans le home
+  sudo rm -f \"/home/${SSH_USER}/wildcard.\${DOMAIN}.\"*.pem
 "
 
 # Télécharger, installer et lancer le script de backup
