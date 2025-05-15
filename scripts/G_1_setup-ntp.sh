@@ -139,11 +139,11 @@ sudo firewall-cmd --zone=public --add-port=123/udp --permanent
 sudo firewall-cmd --reload && \
 print_ok "Port 123/udp ouvert dans firewalld." || \
 print_error "Impossible d'ouvrir le port 123/udp dans firewalld. (public)"
-print_info "Ouverture du port 123/udp dans firewalld (zone docker)..."
-sudo firewall-cmd --zone=docker --add-port=123/udp --permanent && \
-sudo firewall-cmd --reload && \
-print_ok "Port 123/udp ouvert dans firewalld." || \
-print_error "Impossible d'ouvrir le port 123/udp dans firewalld. (docker)"
+# print_info "Ouverture du port 123/udp dans firewalld (zone docker)..."
+# sudo firewall-cmd --zone=docker --add-port=123/udp --permanent && \
+# sudo firewall-cmd --reload && \
+# print_ok "Port 123/udp ouvert dans firewalld." || \
+# print_error "Impossible d'ouvrir le port 123/udp dans firewalld. (docker)"
 
 # ─── DÉMARRAGE DU SERVICE ───────────────────────
 print_info "Activation et redémarrage du service chronyd..."
