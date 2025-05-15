@@ -149,14 +149,20 @@ echo "✅ Clé et certificat récupérés dans : ${LOCAL_CERT_DIR}/"
 
 # Copier wildcard.heh.lan.crt.pem et wildcard.heh.lan.key.pem dans /etc/ssl/certs/wildcard.heh.lan.crt.pem et /etc/ssl/private/wildcard.heh.lan.key.pem sur le serveur de données
 
-scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
-    "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.crt.pem" \
-    "${SSH_USER}@${DATA_IP}:/etc/ssl/certs/wildcard.${DOMAIN}.crt.pem"
-scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
-    "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.key.pem" \
-    "${SSH_USER}@${DATA_IP}:/etc/ssl/private/wildcard.${DOMAIN}.key.pem"
+# Pour le certificat
+ssh -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" "${SSH_USER}@${DATA_IP}" "sudo tee /etc/ssl/certs/wildcard.${DOMAIN}.crt.pem > /dev/null" < "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.crt.pem"
 
+# Pour la clé privée
+ssh -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" "${SSH_USER}@${DATA_IP}" "sudo tee /etc/ssl/private/wildcard.${DOMAIN}.key.pem > /dev/null" < "${LOCAL_CERT_DIR}/wildcard.${DOMAIN}.key.pem"
 
+# Puis ajustez les permissions
+ssh -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" "${SSH_USER}@${DATA_IP}" bash -lc "
+  sudo chown root:root /etc/ssl/certs/wildcard.${DOMAIN}.crt.pem &&
+  sudo chmod 644 /etc/ssl/certs/wildcard.${DOMAIN}.crt.pem &&
+
+  sudo chown root:root /etc/ssl/private/wildcard.${DOMAIN}.key.pem &&
+  sudo chmod 600 /etc/ssl/private/wildcard.${DOMAIN}.key.pem
+"
 #
 # 5) SERVEUR DE MONITORING — clone + installation + monitoring
 #
