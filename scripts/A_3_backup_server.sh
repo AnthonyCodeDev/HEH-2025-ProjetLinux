@@ -276,7 +276,7 @@ backup_dir() {
   # Préparation du répertoire distant via clé SSH
   ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
     "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}" \
-    "sudo mkdir -p '${REMOTE_BASE_DIR}/${TYPE}' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/${TYPE}'" \
+    "sudo mkdir -p '${REMOTE_BASE_DIR}/${TYPE}' && sudo chown '${REMOTE_TRANSFER_USER}:${REMOTE_TRANSFER_USER}' '${REMOTE_BASE_DIR}/${TYPE}'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/$TYPE"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
   
@@ -313,7 +313,7 @@ backup_db() {
   # Préparation du répertoire distant en clé SSH
   ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
     "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}" \
-    "sudo mkdir -p '${REMOTE_BASE_DIR}/db' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/db'" \
+    "sudo mkdir -p '${REMOTE_BASE_DIR}/db' && sudo chown '${REMOTE_TRANSFER_USER}:${REMOTE_TRANSFER_USER}' '${REMOTE_BASE_DIR}/db'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/db"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
   
@@ -340,7 +340,7 @@ backup_services() {
   # Préparation du répertoire distant via clé SSH
   ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
     "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}" \
-    "sudo mkdir -p '${REMOTE_BASE_DIR}/services' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/services'" \
+    "sudo mkdir -p '${REMOTE_BASE_DIR}/services' && sudo chown '${REMOTE_TRANSFER_USER}:${REMOTE_TRANSFER_USER}' '${REMOTE_BASE_DIR}/services'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/services"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
   
@@ -368,7 +368,7 @@ backup_users() {
   # Préparation du répertoire distant via clé SSH
   ssh -i "${SSH_KEY_FILE}" -o StrictHostKeyChecking=no \
     "${REMOTE_TRANSFER_USER}@${REMOTE_HOST}" \
-    "sudo mkdir -p '${REMOTE_BASE_DIR}/users' && sudo chown '${REMOTE_USER}:${REMOTE_USER}' '${REMOTE_BASE_DIR}/users'" \
+    "sudo mkdir -p '${REMOTE_BASE_DIR}/users' && sudo chown '${REMOTE_TRANSFER_USER}:${REMOTE_TRANSFER_USER}' '${REMOTE_BASE_DIR}/users'" \
     && { log "✅ Répertoire distant prêt : $REMOTE_BASE_DIR/users"; succ "Répertoire distant prêt."; } \
     || { log "❌ Échec prépa dir distant."; err "Impossible de préparer le répertoire distant."; }
   
