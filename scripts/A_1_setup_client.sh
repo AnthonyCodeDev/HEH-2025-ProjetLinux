@@ -73,8 +73,6 @@ SSL_KEY="/etc/ssl/private/wildcard.${DOMAIN}.key.pem"
 echo "Certificat SSL : $SSL_CERT"
 echo "Clé SSL : $SSL_KEY"
 
-sudo cat "$SSL_CERT"
-
 if [[ ! -f "$SSL_CERT" || ! -f "$SSL_KEY" ]]; then
   err "Certificat wildcard SSL non trouvé. Génère le certificat SSL (*.${DOMAIN}) avant d'exécuter ce script.3"
 fi

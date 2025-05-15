@@ -157,7 +157,6 @@ case "${ID:-}-${VERSION_ID:-}" in
   *)                                 PKG_MGR=$(command -v dnf||command -v yum||echo apt-get);;
 esac
 succ "Gestionnaire détecté : $PKG_MGR"
-
 ### —───────────────────────────────────
 ###  2) Installation des dépendances
 ### —───────────────────────────────────
@@ -178,14 +177,19 @@ else
   succ "cronie déjà installé"
 fi
 
-# mysqldump
+# Détection du paquet client SQL adapté
+CLIENT_PKG=""
+case "${ID:-}-${VERSION_ID:-}" in
+  amzn-2023)       CLIENT_PKG=mariadb105;;
+  amzn-2)          CLIENT_PKG=mariadb;;
+  ubuntu*|debian*) CLIENT_PKG=mariadb-client;;
+  *)               CLIENT_PKG=mariadb-client;;
+esac
+
+# mysqldump (client SQL)
 if ! command -v mysqldump &>/dev/null; then
-  if [[ "$PKG_MGR" == "apt-get" ]]; then
-    $PKG_MGR install -y mariadb-client
-  else
-    $PKG_MGR install -y mariadb
-  fi
-  succ "Client MySQL/MariaDB installé"
+  $PKG_MGR install -y "$CLIENT_PKG"
+  succ "Client MySQL/MariaDB ($CLIENT_PKG) installé"
 else
   succ "mysqldump déjà disponible"
 fi
