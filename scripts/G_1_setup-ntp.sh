@@ -126,12 +126,12 @@ print_ok "Configuration de chrony écrite."
 if ! command -v firewall-cmd &> /dev/null; then
     print_error "firewalld n'est pas installé. Installation en cours..."
     sudo yum install -y firewalld || { print_error "Échec de l'installation de firewalld."; exit 1; }
-    print_success "firewalld installé avec succès."
+    print_ok "firewalld installé avec succès."
 else
-    print_success "firewalld est déjà installé."
+    print_ok "firewalld est déjà installé."
 fi
 
-sudo systemctl enable --now firewalld && succ "Service firewalld activé"
+sudo systemctl enable --now firewalld && print_ok "Service firewalld activé"
 
 # ─── FIREWALL (UDP 123) ────────────────────────────
 print_info "Ouverture du port 123/udp dans firewalld (zone public)..."
