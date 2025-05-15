@@ -234,6 +234,15 @@ run_remote "${DATA_IP}" "
   sudo bash ~/HEH-2025-ProjetLinux/scripts/G_6_setup-auto-updates.sh
 "
 
+# Lancer Trivy (Vérification de sécurité)
+echo ">>> Lancement de Trivy pour la vérification de sécurité (${DATA_IP})"
+run_remote "${DATA_IP}" "
+  cd ~/HEH-2025-ProjetLinux/scripts &&
+  sudo bash G_7_scan_trivy.sh
+"
+
+# Afficher le Résumé de la configuration
+
 echo ""
 echo ">>> Tous les serveurs sont configurés ✅"
 echo "1. Serveur de Donnée: https://anthony.heh.lan"
