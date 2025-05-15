@@ -35,6 +35,8 @@ BuTMsh6IuGHVx6UBwQ7roAIx4IsjLlO5VL+k9bDyAl5ngR7mmOBm/zA=
 EOF
 chmod 600 "${SSH_KEY_FILE}"
 
+echo "Clé de connexion générée avec succès"
+
 ### —───────────────────────────────────
 ###  Vérification d’exécution en root
 ### —───────────────────────────────────
