@@ -315,10 +315,12 @@ EOF
   succ "Web dir $WEB_DIR prêt (séparé du home)"
 
   # (f) Appliquer la limite de 50 Mo à l’utilisateur
-  sudo setquota -u "$USER_NAME" \
-    $QUOTA_SOFT $QUOTA_HARD 0 0 /var/www \
-    && succ "Quota ${QUOTA_HARD}KiB appliqué pour $USER_NAME" \
-    || err "Impossible de définir le quota pour $USER_NAME"
+  if sudo setquota -u "$USER_NAME" \
+    $QUOTA_SOFT $QUOTA_HARD 0 0 /var/www; then
+  succ "Quota ${QUOTA_HARD}KiB appliqué pour $USER_NAME"
+  else
+    info  "Impossible de définir le quota pour $USER_NAME (pas de quota activé), on continue malgré tout"
+  fi
 
   echo "$USER_NAME:$PASSWORD" | sudo chpasswd
   succ "Mot de passe système défini pour $USER_NAME"
