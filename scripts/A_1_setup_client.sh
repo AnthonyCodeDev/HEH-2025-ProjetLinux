@@ -253,9 +253,11 @@ if ! grep -E '^[^#].*\s/var/www\s.*usrquota' /etc/fstab; then
 fi
 
 # (c) Remonter la partition avec usrquota
-sudo mount -o remount,usrquota /var/www \
-  && succ "/var/www remonté avec usrquota" \
-  || err "Échec du remontage de /var/www"
+if sudo mount -o remount,usrquota /var/www; then
+  succ "/var/www remonté avec usrquota"
+else
+  info  "Impossible de remonter /var/www (usrquota), on continue malgré tout"
+fi
 
 # (d) Initialiser et activer les fichiers de quota (force, et on continue même si ça échoue)
 if sudo quotacheck -fcug /var/www >/dev/null 2>&1; then
