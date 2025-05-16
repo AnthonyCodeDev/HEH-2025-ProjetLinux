@@ -109,6 +109,15 @@ done
 docker rm -f "$UI_CN" "$API_CN" >/dev/null 2>&1 || true
 docker volume rm -f uptime-kuma-data >/dev/null 2>&1 || true
 
+echo "[INFO] Création manuelle de la chaîne DOCKER dans iptables filter"
+iptables -t filter -N DOCKER                              || true
+# Branche la chaîne DOCKER sur FORWARD pour docker0
+iptables -t filter -A FORWARD -o docker0 -j DOCKER
+# Autorise le trafic established/related vers docker0 (comme Docker le ferait)
+iptables -t filter -A FORWARD -o docker0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+# Autorise tout trafic issu de docker0 vers l'extérieur
+iptables -t filter -A FORWARD -i docker0 ! -o docker0 -j ACCEPT
+
 # --- 8. Lancement UI
 echo "[INFO] Démarrage UI Uptime-Kuma…"
 docker run -d --name "$UI_CN" --restart unless-stopped -p "${WEB_PORT}":3001 -v uptime-kuma-data:/app/data "$UI_IMG"
