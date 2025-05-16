@@ -299,11 +299,11 @@ run_remote "${MONITORING_IP}" "
 "
 
 # Configuration de SSH sécurisé sur DATA
-echo ">>> Configuration de SSH sécurisé sur le serveur DATA (${DATA_IP})"
-run_remote "${DATA_IP}" "
-  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_2_secure-ssh.sh \
-    | sudo bash
-"
+# echo ">>> Configuration de SSH sécurisé sur le serveur DATA (${DATA_IP})"
+# run_remote "${DATA_IP}" "
+#   wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/G_2_secure-ssh.sh \
+#     | sudo bash
+# "
 
 # Mise à jour automatique du kernel et des paquets DNF
 echo ">>> Configuration de la mise à jour automatique du kernel et des paquets DNF (${DATA_IP})"
