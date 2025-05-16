@@ -97,6 +97,23 @@ function install_if_missing {
   fi
 }
 
+### —───────────────────────────────────
+### Vérification et installation de PHP & PHP-FPM
+### —───────────────────────────────────
+if ! command -v php &>/dev/null || ! systemctl is-active --quiet php-fpm; then
+  info "PHP ou PHP-FPM non détecté. Installation en cours..."
+  sudo dnf install -y php php-fpm \
+    && succ "PHP et PHP-FPM installés" \
+    || err "Échec de l'installation de PHP/FPM"
+  
+  sudo systemctl enable --now php-fpm \
+    && succ "php-fpm activé et démarré" \
+    || err "Impossible de démarrer php-fpm"
+else
+  succ "PHP et PHP-FPM déjà installés et actifs"
+fi
+
+
 ### 3) Installation/activation services
 for pkg in nginx openssl vsftpd samba "$CLIENT_PKG"; do
   [[ $PKG_MGR = apt-get && $pkg = $CLIENT_PKG ]] && sudo apt-get update -y
@@ -313,7 +330,17 @@ server {
 
   root  $WEB_DIR;
   index index.html index.htm;
-  location / { try_files \$uri \$uri/ =404; }
+  
+  location / {
+    try_files \$uri \$uri/ =404;
+  }
+
+  location ~ \.php$ {
+    include fastcgi_params;
+    fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+    fastcgi_index index.php;
+    fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+  }
 }
 NGINX
     succ "vHost nginx ajouté pour $DOMAIN"
