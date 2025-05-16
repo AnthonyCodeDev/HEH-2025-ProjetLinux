@@ -337,7 +337,7 @@ server {
 
   location ~ \.php$ {
     include fastcgi_params;
-    fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+    fastcgi_pass unix:/run/php-fpm/www.sock;
     fastcgi_index index.php;
     fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
   }
