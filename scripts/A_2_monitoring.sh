@@ -140,6 +140,7 @@ fi
 info "→ Lancement du conteneur Cockpit (host network)"
 sudo $CONTAINER_CMD rm -f cockpit &>/dev/null || true
 sudo $CONTAINER_CMD run -d --name cockpit \
+  --restart unless-stopped \
   --privileged \
   --network host \
   -v /:/host:ro \
