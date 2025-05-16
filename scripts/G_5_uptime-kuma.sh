@@ -85,7 +85,7 @@ echo "[INFO] Vérification iptables DOCKER…"
 if ! iptables -t nat -L DOCKER >/dev/null 2>&1; then
   dnf install -y iptables-services >/dev/null 2>&1
   systemctl enable --now iptables >/dev/null 2>&1
-  systemctl restart docker
+  # systemctl restart docker
 fi
 
 # --- 7. Pull images & nettoyage
