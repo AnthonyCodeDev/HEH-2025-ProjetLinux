@@ -79,25 +79,14 @@ systemctl enable --now firewalld >/dev/null 2>&1
 echo "[INFO] Ouverture ports ${WEB_PORT} et ${API_PORT}"
 firewall-cmd --permanent --add-port=${WEB_PORT}/tcp
 firewall-cmd --permanent --add-port=${API_PORT}/tcp
-firewall-cmd --permanent --add-port=9090/tcp
 firewall-cmd --reload
 
 echo "[INFO] Vérification iptables DOCKER…"
 if ! iptables -t nat -L DOCKER >/dev/null 2>&1; then
   dnf install -y iptables-services >/dev/null 2>&1
   systemctl enable --now iptables >/dev/null 2>&1
-  # systemctl restart docker
+  systemctl restart docker
 fi
-
-# --- Création manuelle de la chaîne DOCKER dans nat
-echo "[INFO] Création manuelle de la chaîne DOCKER dans iptables nat"
-iptables -t nat -N DOCKER                                    || true
-iptables -t nat -A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
-# Adapte le subnet si besoin : ici le bridge par défaut
-SUBNET=$(docker network inspect bridge \
-  -f '{{(index .IPAM.Config 0).Subnet}}')
-iptables -t nat -A POSTROUTING -s "${SUBNET}" ! -o docker0 -j MASQUERADE
-
 
 # --- 7. Pull images & nettoyage
 echo "[INFO] Pull des images Docker…"
@@ -109,18 +98,9 @@ done
 docker rm -f "$UI_CN" "$API_CN" >/dev/null 2>&1 || true
 docker volume rm -f uptime-kuma-data >/dev/null 2>&1 || true
 
-echo "[INFO] Création manuelle de la chaîne DOCKER dans iptables filter"
-iptables -t filter -N DOCKER                              || true
-# Branche la chaîne DOCKER sur FORWARD pour docker0
-iptables -t filter -A FORWARD -o docker0 -j DOCKER
-# Autorise le trafic established/related vers docker0 (comme Docker le ferait)
-iptables -t filter -A FORWARD -o docker0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-# Autorise tout trafic issu de docker0 vers l'extérieur
-iptables -t filter -A FORWARD -i docker0 ! -o docker0 -j ACCEPT
-
 # --- 8. Lancement UI
 echo "[INFO] Démarrage UI Uptime-Kuma…"
-docker run -d --name "$UI_CN" --restart unless-stopped -p "${WEB_PORT}":3001 -v uptime-kuma-data:/app/data "$UI_IMG"
+docker run -d --name "$UI_CN" -p "${WEB_PORT}":3001 -v uptime-kuma-data:/app/data "$UI_IMG"
 
 # --- 9. Création auto admin avec debug
 echo "[INFO] Création automatique de l'utilisateur admin…"
@@ -203,7 +183,7 @@ echo "[OK] Utilisateur admin : ${ADMIN_USER}/${ADMIN_PASS}"
 
 # --- 10. Lancement wrapper REST et création des moniteurs
 echo "[INFO] Démarrage wrapper REST…"
-docker run -d --name "$API_CN" --restart unless-stopped --link "$UI_CN":uptime_kuma \
+docker run -d --name "$API_CN" --link "$UI_CN":uptime_kuma \
   -e KUMA_SERVER="http://uptime_kuma:3001" -e KUMA_USERNAME="$ADMIN_USER" \
   -e KUMA_PASSWORD="$ADMIN_PASS" -e ADMIN_PASSWORD="$ADMIN_PASS" \
   -e SECRET_KEY="$ADMIN_PASS" -e KUMA_LOGIN_PATH="/login/access-token" \

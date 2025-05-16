@@ -163,46 +163,7 @@ ssh -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" "${SSH_USER}@${DATA_IP}
   sudo chown root:root /etc/ssl/private/wildcard.${DOMAIN}.key.pem &&
   sudo chmod 600 /etc/ssl/private/wildcard.${DOMAIN}.key.pem
 "
-#
-# 5) SERVEUR DE MONITORING — clone + installation + monitoring
-#
-echo ">>> Configuration du serveur MONITORING (${MONITORING_IP})"
 
-# Copier les certificats sur la home de l’utilisateur distant
-scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
-    "${LOCAL_CERT_DIR}/"*.pem \
-    "${SSH_USER}@${MONITORING_IP}:~/"
-
-run_remote "${MONITORING_IP}" "
-  DOMAIN=\"heh.lan\"
-
-  echo '>>> Déploiement des certificats sur MONITORING'
-  # Création des dossiers si nécessaire
-  sudo mkdir -p /etc/ssl/certs /etc/ssl/private &&
-
-  # Copie dans /etc/ssl/certs et /etc/ssl/private
-  sudo cp \"/home/${SSH_USER}/wildcard.\${DOMAIN}.crt.pem\"   \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
-  sudo cp \"/home/${SSH_USER}/wildcard.\${DOMAIN}.key.pem\"   \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
-
-  # Ajustement des propriétaires et permissions
-  sudo chown root:root \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
-  sudo chmod 644      \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
-
-  sudo chown root:root \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
-  sudo chmod 600      \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
-
-  # (optionnel) suppression des sources dans le home
-  sudo rm -f \"/home/${SSH_USER}/wildcard.\${DOMAIN}.\"*.pem
-"
-
-# Télécharger et exécuter les scripts directement depuis GitHub
-run_remote "${MONITORING_IP}" "
-  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_1_setup_client.sh \
-    | sudo bash -s -- -u monitoring -p pass &&
-
-  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_2_monitoring.sh \
-    | sudo bash -s -- -d ${DATA_IP}
-"
 
 #
 # 6) AJOUT DU CLIENT MONITORING ET BACKUP SUR DATA
@@ -296,6 +257,47 @@ run_remote "${MONITORING_IP}" "
       -monitoring ${MONITORING_IP} \
       -time ${TIME_IP} \
       -backup ${BACKUP_IP}
+"
+
+#
+# 5) SERVEUR DE MONITORING — clone + installation + monitoring
+#
+echo ">>> Configuration du serveur MONITORING (${MONITORING_IP})"
+
+# Copier les certificats sur la home de l’utilisateur distant
+scp -o StrictHostKeyChecking=no -i "${PRIVATE_KEY_FILE}" \
+    "${LOCAL_CERT_DIR}/"*.pem \
+    "${SSH_USER}@${MONITORING_IP}:~/"
+
+run_remote "${MONITORING_IP}" "
+  DOMAIN=\"heh.lan\"
+
+  echo '>>> Déploiement des certificats sur MONITORING'
+  # Création des dossiers si nécessaire
+  sudo mkdir -p /etc/ssl/certs /etc/ssl/private &&
+
+  # Copie dans /etc/ssl/certs et /etc/ssl/private
+  sudo cp \"/home/${SSH_USER}/wildcard.\${DOMAIN}.crt.pem\"   \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+  sudo cp \"/home/${SSH_USER}/wildcard.\${DOMAIN}.key.pem\"   \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+
+  # Ajustement des propriétaires et permissions
+  sudo chown root:root \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+  sudo chmod 644      \"/etc/ssl/certs/wildcard.\${DOMAIN}.crt.pem\" &&
+
+  sudo chown root:root \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+  sudo chmod 600      \"/etc/ssl/private/wildcard.\${DOMAIN}.key.pem\" &&
+
+  # (optionnel) suppression des sources dans le home
+  sudo rm -f \"/home/${SSH_USER}/wildcard.\${DOMAIN}.\"*.pem
+"
+
+# Télécharger et exécuter les scripts directement depuis GitHub
+run_remote "${MONITORING_IP}" "
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_1_setup_client.sh \
+    | sudo bash -s -- -u monitoring -p pass &&
+
+  wget -qO- https://raw.githubusercontent.com/AnthonyCodeDev/HEH-2025-ProjetLinux/refs/heads/main/scripts/A_2_monitoring.sh \
+    | sudo bash -s -- -d ${DATA_IP}
 "
 
 # Configuration de SSH sécurisé sur DATA
