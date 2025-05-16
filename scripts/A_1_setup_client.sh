@@ -257,13 +257,18 @@ sudo mount -o remount,usrquota /var/www \
   && succ "/var/www remonté avec usrquota" \
   || err "Échec du remontage de /var/www"
 
-# (d) Initialiser et activer les fichiers de quota
-sudo quotacheck -cug /var/www \
-  && succ "quotacheck exécuté sur /var/www" \
-  || err "Erreur lors de quotacheck"
-sudo quotaon /var/www \
-  && succ "Quota activé sur /var/www" \
-  || err "Impossible d’activer les quotas"
+# (d) Initialiser et activer les fichiers de quota (force, et on continue même si ça échoue)
+if sudo quotacheck -fcug /var/www >/dev/null 2>&1; then
+  succ "quotacheck exécuté sur /var/www"
+else
+  info "quotacheck échoué ou déjà initialisé, on continue"
+fi
+
+if sudo quotaon /var/www >/dev/null 2>&1; then
+  succ "Quota activé sur /var/www"
+else
+  info "Impossible d’activer les quotas ou déjà activés, on continue"
+fi
 
 # (e) Calcul des valeurs en KiB pour 50 Mo
 QUOTA_SOFT=$((50 * 1024))
