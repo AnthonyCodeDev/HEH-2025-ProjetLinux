@@ -233,6 +233,42 @@ sudo mkdir -p /etc/vsftpd_user_conf
 sudo chown root:root /etc/vsftpd_user_conf
 sudo chmod 755 /etc/vsftpd_user_conf
 
+### 9) Activation des quotas sur /var/www
+
+# (a) Installer le package quota si manquant
+if ! command -v repquota &>/dev/null; then
+  info "Installation du package quota"
+  sudo $PKG_MGR install -y quota \
+    && succ "quota installé" \
+    || err "Impossible d'installer quota"
+else
+  succ "quota déjà présent"
+fi
+
+# (b) Ajouter l’option usrquota dans /etc/fstab pour /var/www
+if ! grep -E '^[^#].*\s/var/www\s.*usrquota' /etc/fstab; then
+  info "Ajout de l'option usrquota pour /var/www dans /etc/fstab"
+  sudo sed -r -i '/\s\/var\/www\s/ s|(defaults)(.*)|\1\2,usrquota|' /etc/fstab \
+    && succ "Option usrquota ajoutée à fstab"
+fi
+
+# (c) Remonter la partition avec usrquota
+sudo mount -o remount,usrquota /var/www \
+  && succ "/var/www remonté avec usrquota" \
+  || err "Échec du remontage de /var/www"
+
+# (d) Initialiser et activer les fichiers de quota
+sudo quotacheck -cug /var/www \
+  && succ "quotacheck exécuté sur /var/www" \
+  || err "Erreur lors de quotacheck"
+sudo quotaon /var/www \
+  && succ "Quota activé sur /var/www" \
+  || err "Impossible d’activer les quotas"
+
+# (e) Calcul des valeurs en KiB pour 50 Mo
+QUOTA_SOFT=$((50 * 1024))
+QUOTA_HARD=$((50 * 1024))
+
 ### 9) Boucle de configuration pour chaque client
 for USER_NAME in "${USERS[@]}"; do
   WEB_DIR="/var/www/$USER_NAME"
@@ -270,6 +306,12 @@ EOF
   sudo chown -R "$USER_NAME:$USER_NAME" "$WEB_DIR"
   sudo chmod -R 755 "$WEB_DIR"
   succ "Web dir $WEB_DIR prêt (séparé du home)"
+
+  # (f) Appliquer la limite de 50 Mo à l’utilisateur
+  sudo setquota -u "$USER_NAME" \
+    $QUOTA_SOFT $QUOTA_HARD 0 0 /var/www \
+    && succ "Quota ${QUOTA_HARD}KiB appliqué pour $USER_NAME" \
+    || err "Impossible de définir le quota pour $USER_NAME"
 
   echo "$USER_NAME:$PASSWORD" | sudo chpasswd
   succ "Mot de passe système défini pour $USER_NAME"
