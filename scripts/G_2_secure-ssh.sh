@@ -73,7 +73,7 @@ enable_directive PermitRootLogin          no
 enable_directive PasswordAuthentication    yes
 enable_directive PubkeyAuthentication      yes
 enable_directive AuthorizedKeysFile        .ssh/authorized_keys
-enable_directive AllowUsers               "${ADMIN_USER} ec2-user root monitoring backup"
+enable_directive AllowUsers               "${ADMIN_USER} ec2-user monitoring backup"
 enable_directive X11Forwarding            no
 enable_directive AllowTcpForwarding       yes
 echo "UsePAM yes"                            >> "${SSH_CONFIG}"
