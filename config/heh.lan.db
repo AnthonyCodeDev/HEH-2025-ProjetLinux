@@ -1,0 +1,11 @@
+$ORIGIN heh.lan.
+$TTL 86400
+@   IN SOA master.heh.lan. admin.heh.lan. (
+      2025052001 ; serial
+      3600      ; refresh
+      1800      ; retry
+      604800    ; expire
+      86400 )   ; minimum
+    IN NS master.heh.lan.
+*      IN A 10.42.0.135
+@      IN A 10.42.0.135
