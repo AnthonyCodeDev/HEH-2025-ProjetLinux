@@ -8,8 +8,6 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
 
 ### Jour 1 – 12-05-2025
 - **Tâches réalisées :** 
-
-  - Création du MOTD personnalisé :  
   - Installation des serveurs Ubuntu 22.04 sur AWS EC2.  
   - Téléchargement et placement des clés SSH (`anthony.pem`, `guillaume.pem`).
   - Création des scripts : 
@@ -22,13 +20,10 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
     - G_2_secure-ssh.sh : script qui permet de configurer le ssh sécurise sur le serveur.
     ``` 
 - **Problèmes rencontrés :**  
-  - Erreur de permissions sur les clé privée mal typée.  
+  - Erreur de permissions sur les clé privée mal typée. 
 
 ### Jour 2 – 12-05-2025
 - **Tâches réalisées :**  
-  - Exécution du script `A_1_install_packages.sh` : installation de NFS, Samba, BIND9, Chrony.  
-  - Exécution du script `A_2_configure_services.sh` : initialisation du partage FTP (vsftpd) et création des utilisateurs FTP.  
-  - Mise en place des serveurs dédiés de sauvegarde et de monitoring.
   - Création des scripts : 
     ```
     - A_3_backup_server.sh : script qui permet de faire des backups..
@@ -36,7 +31,7 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
     - G_3_setup-dns.sh : script qui permet la configurationdu du DNS.
     ``` 
 - **Problèmes rencontrés :**  
-  - VSFTPD : “refusing to run with writable root inside chroot()”.  
+  
 
 ### Jour 3 – 13-05-2025
 - **Tâches réalisées :**
@@ -54,11 +49,12 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
 
 ### Jour 4 – 14-05-2025
 - **Tâches réalisées :**  
-  - Rédaction du rapport final  
-    - `rsync` des dossiers `/var/www` et `/etc`  
-    - Dump des bases de données et upload S3 avec rotation (> 7 jours)  
-- **Problèmes / Observations :**  
-  - À automatiser via une tâche cron pour exécution quotidienne.
+  - Création des scripts : 
+    ```
+      - G_6_setup-auto-updates.sh : script qui permet de faire les mises a jour importantes automatiquement.
+      - G_7_scan_trivy.sh : script qui permet de scanner les vulnérabilité critique sur le serveur.
+    ```
+- **Problèmes rencontrés :**   
 
 ### Jour 5 – 15-05-2025
 - **Tâches réalisées :**
