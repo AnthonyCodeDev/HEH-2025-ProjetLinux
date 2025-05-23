@@ -4,7 +4,7 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
 
 ---
 
-## Semaine 1 (12/05/2025 – 15/05/2025)
+## Semaine du 12/05/2025 – 15/05/2025
 
 ### Jour 1 – 12-05-2025
 - **Tâches réalisées :** 
@@ -28,27 +28,29 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
 - **Tâches réalisées :**  
   - Exécution du script `A_1_install_packages.sh` : installation de NFS, Samba, BIND9, Chrony.  
   - Exécution du script `A_2_configure_services.sh` : initialisation du partage FTP (vsftpd) et création des utilisateurs FTP.  
-  - Mise en place des serveurs dédiés de sauvegarde et de monitoring.  
+  - Mise en place des serveurs dédiés de sauvegarde et de monitoring.
+  - Création des scripts : 
+    ```
+    - A_3_backup_server.sh : script qui permet de faire des backups..
+    - A_4_security.sh : script qui permet de gerer toute la sécurité du serveur.
+    - G_3_setup-dns.sh : script qui permet la configurationdu du DNS.
+    ``` 
 - **Problèmes rencontrés :**  
   - VSFTPD : “refusing to run with writable root inside chroot()”.  
 
 ### Jour 3 – 13-05-2025
-- **Tâches réalisées :**  
-  - Désinstallation complète de MariaDB/MySQL :  
-    ```bash
-    sudo systemctl stop mariadb.service
-    sudo systemctl disable mariadb.service
-    sudo apt-get purge -y mariadb-client mariadb-server mysql-client mysql-server
-    sudo rm -rf /var/lib/mysql /etc/mysql /var/log/mysql*
-    sudo userdel mysql || true
-    sudo groupdel mysql || true
-    ```  
-- **Vérifications :**  
-  - `which mysql` ne renvoie rien.  
-  - `sudo systemctl status mariadb.service` confirme la suppression.  
-- **Temps passé :** 2 h  
-- **Observations :**  
-  - Prévoir une installation propre si nécessaire sur un serveur dédié.
+- **Tâches réalisées :**
+  - Création du README.md pour le projet
+  - Création des scripts : 
+    ```
+      - A_5_generate_certif.sh : script qui permet de generer des certificats ssl auto signer.
+      - A_6_go.sh : script qui permet de faire lancer tout les script en une fois.
+      - G_set-vpn-ip-dns.ps1 : script qui permet de setup une adresse ip sur un client windows pour openvpn.
+      - G_4_mount_xvdb.sh : script qui permet de monter sur xvdb.
+      - G_5_uptime-kuma.sh : script qui permet de configurer un service de monitoring pour les serveurs mis en place.
+    ```
+- **Problèmes rencontrés :**  
+
 
 ### Jour 4 – 14-05-2025
 - **Tâches réalisées :**  
