@@ -9,49 +9,28 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
 ### Jour 1 – 12-05-2025
 - **Tâches réalisées :** 
 
-  - *Guillaume*
-
   - Création du MOTD personnalisé :  
-    ```bash
-    sudo nano /etc/motd.d/99-custom-banner-99
-    ```  
-    Bannière incluse sur chaque serveur.  
   - Installation des serveurs Ubuntu 22.04 sur AWS EC2.  
-  - Téléchargement et placement des clés SSH (`anthony.pem`, `guillaume.pem`).  
-- **Configuration :**  
-  - Ouverture du port SSH (22) dans les Security Groups.  
-  - Liste des serveurs mise à jour :  
-    - **Prod** : 10.42.0.198 (`ssh -i anthony.pem ec2-user@10.42.0.198`)  
-    - **Dev Guillaume** : 10.42.0.53 (`ssh -i guillaume.pem ec2-user@10.42.0.53`)  
-    - **Dev Anthony** : 10.42.0.26 (`ssh -i anthony.pem ec2-user@10.42.0.26`)  
+  - Téléchargement et placement des clés SSH (`anthony.pem`, `guillaume.pem`).
+  - Création des scripts : 
+    ```
+    - A_0_setup_nfs_samba.sh : script qui permet de setup NFS et SAMBA.
+    - A_1_setup_client.sh : script qui permet de créer un utilisateur (client).
+    - A_2_monitoring.sh : script qui permet la configurationdu monitoring centralisé via une interface web
+    - G_0_client-ntp.sh : script qui permet de setup le nfs sur un client.
+    - G_1_setup-ntp.sh : script qui permet de setup le service NTP sur un serveur.
+    - G_2_secure-ssh.sh : script qui permet de configurer le ssh sécurise sur le serveur.
+    ``` 
 - **Problèmes rencontrés :**  
-  - Erreur de permissions sur la clé privée mal typée.  
-- **Solutions apportées :**  
-  - Recréation de la paire de clés, application de `chmod 600`.  
-- **Temps passé :** 2 h  
-- **Observations :**  
-  - Vérifier systématiquement les permissions avant chaque connexion SSH.
+  - Erreur de permissions sur les clé privée mal typée.  
 
 ### Jour 2 – 12-05-2025
 - **Tâches réalisées :**  
   - Exécution du script `A_1_install_packages.sh` : installation de NFS, Samba, BIND9, Chrony.  
   - Exécution du script `A_2_configure_services.sh` : initialisation du partage FTP (vsftpd) et création des utilisateurs FTP.  
   - Mise en place des serveurs dédiés de sauvegarde et de monitoring.  
-- **Configuration :**  
-  - Mise à jour du mot de passe MySQL :  
-    ```sql
-    FLUSH PRIVILEGES;
-    ALTER USER 'root'@'localhost' IDENTIFIED BY 'VotreNouveauMdp1!';
-    FLUSH PRIVILEGES;
-    EXIT;
-    ```  
 - **Problèmes rencontrés :**  
   - VSFTPD : “refusing to run with writable root inside chroot()”.  
-- **Solutions apportées :**  
-  - Ajustement des permissions sur le répertoire chroot et ajout de `allow_writeable_chroot=YES` dans `/etc/vsftpd.conf`.  
-- **Temps passé :** 3 h  
-- **Observations :**  
-  - Tester l’accès FTP avec un compte utilisateur minimal.
 
 ### Jour 3 – 13-05-2025
 - **Tâches réalisées :**  
@@ -80,23 +59,12 @@ Ce document retrace, de manière chronologique, l’avancement du projet, les t�
   - À automatiser via une tâche cron pour exécution quotidienne.
 
 ### Jour 5 – 15-05-2025
-- **Tâches réalisées :**  
+- **Tâches réalisées :**
+  - Mise en place des différents serveurs.
+  - Création du script go qui permet de lancer tout le projet en 1 fois.
   - Présentation du projet devant les professeurs.
 - **Problèmes rencontrés :**  
   - ... 
-- **Solutions en cours :**  
-  - ...
-
----
-
-## Chapitres suivants
-
-- **Lundi 12/05/2025 :** Sécurisation (UFW, quotas, AppArmor), script `A_4_secure.sh`  
-- **Mardi 13/05/2025 :** Finalisation des derniers scripts, sécurité, etc..  
-- **Mercredi 14/05/2025 :** Correction des derniers bugs + créer le script qui lancera tout a la fois  
-- **Jeudi 15/05/2025  :** Préparation de la démonstration et rapport final
-
----
 
 > **Conseils :**  
 > - Rédigez le journal a la fin de la journée, idéalement chaque soir.  
